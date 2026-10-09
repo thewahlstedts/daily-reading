@@ -707,6 +707,7 @@ const settings = $('#settings');
 $('#settings-btn').addEventListener('click', () => {
   $('#set-start').value = state.start;
   $('#set-meet').value = state.meetDay ?? '';
+  renderShareSummary();
   $('#set-translation').value = state.translation;
   $('#set-rate').value = state.rate;
   $('#rate-label').textContent = `${state.rate.toFixed(2)}×`;
@@ -722,12 +723,14 @@ $('#set-start').addEventListener('change', (e) => {
   state.start = e.target.value;
   save();
   render();
+  renderShareSummary();
 });
 $('#set-meet').addEventListener('change', (e) => {
   state.meetDay = e.target.value === '' ? null : +e.target.value;
   weekOffset = 0;
   save();
   render();
+  renderShareSummary();
 });
 $('#set-translation').addEventListener('change', (e) => { state.translation = e.target.value; save(); });
 $('#set-voice').addEventListener('change', (e) => { state.voice = e.target.value; save(); });
@@ -805,6 +808,13 @@ async function sharePlan() {
 }
 
 $('#share-btn-settings').addEventListener('click', sharePlan);
+
+// Spell out what a shared link carries, next to the share button.
+function renderShareSummary() {
+  const start = fmtShort.format(dateForIndex(0));
+  const meets = state.meetDay != null ? ` and meeting day (${WEEKDAYS[state.meetDay]}s)` : '';
+  $('#share-summary').textContent = `Sends your start date (${start})${meets} so everyone reads the same days. Your checkmarks stay private.`;
+}
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 

@@ -133,99 +133,130 @@
       <span class="spacer"></span>
     </div>
     <form class="settings" id="settings-form">
-      <div class="field sync" id="sync-section">
-        <p class="label">Sync across devices</p>
-        <div id="sync-signed-out">
-          <small>Sign in with your email to keep your progress, start date and translation in sync on all your devices.</small>
-          <div class="row sync-row">
-            <input type="email" id="sync-email-input" placeholder="you@example.com" autocomplete="email" inputmode="email">
-            <button class="btn primary" id="sync-send" type="button">Email me a link</button>
+      <section class="set-group" aria-labelledby="sg-plan">
+        <h3 id="sg-plan">Reading plan</h3>
+        <div class="set-card">
+          <label class="set-row">
+            <span class="set-text"><span class="set-name">Start date</span><small>Day 1 of the plan</small></span>
+            <input type="date" id="set-start">
+          </label>
+          <label class="set-row">
+            <span class="set-text"><span class="set-name">Group meets on</span><small>Weeks run from the day after one meeting through the next</small></span>
+            <select id="set-meet">
+              <option value="">No group</option>
+              <option value="0">Sunday</option>
+              <option value="1">Monday</option>
+              <option value="2">Tuesday</option>
+              <option value="3">Wednesday</option>
+              <option value="4">Thursday</option>
+              <option value="5">Friday</option>
+              <option value="6">Saturday</option>
+            </select>
+          </label>
+          <div class="set-row stacked">
+            <span class="set-text"><span class="set-name">Share with your group</span><small id="share-summary"></small></span>
+            <button class="btn ghost" id="share-btn-settings" type="button">Share plan</button>
           </div>
-          <div id="sync-paste" hidden>
-            <small>Using the home-screen app on iPhone? Tapping the link signs in Safari instead. Long-press the link in the email, choose Copy, and paste it here:</small>
-            <div class="row sync-row">
-              <input type="url" id="sync-link-input" placeholder="Paste sign-in link">
-              <button class="btn ghost" id="sync-paste-btn" type="button">Sign in</button>
+        </div>
+      </section>
+
+      <section class="set-group" aria-labelledby="sg-reading">
+        <h3 id="sg-reading">Reading</h3>
+        <div class="set-card">
+          <label class="set-row">
+            <span class="set-text"><span class="set-name">Translation</span></span>
+            <select id="set-translation">
+              <option value="web">World English (WEB)</option>
+              <option value="kjv">King James (KJV)</option>
+              <option value="asv">American Standard (ASV)</option>
+              <option value="bbe">Basic English (BBE)</option>
+              <option value="ylt">Young's Literal (YLT)</option>
+              <option value="darby">Darby</option>
+            </select>
+          </label>
+          <div class="set-row stacked">
+            <span class="set-text"><span class="set-name">Theme</span></span>
+            <div class="themes" id="theme-picker" role="radiogroup" aria-label="Theme"></div>
+          </div>
+          <div class="set-row stacked">
+            <span class="set-text"><span class="set-name">Text</span></span>
+            <div class="sample">
+              <p><span><sup>1</sup>Yahweh is my shepherd: I shall lack nothing. </span><span><sup>2</sup>He makes me lie down in green pastures. He leads me beside still waters.</span></p>
+              <small>Psalm 23:1&ndash;2</small>
+            </div>
+            <p class="sublabel" id="font-label">Font</p>
+            <div class="segmented fonts" id="font-picker" role="radiogroup" aria-labelledby="font-label"></div>
+            <p class="sublabel" id="size-label">Size</p>
+            <div class="segmented" id="size-picker" role="radiogroup" aria-labelledby="size-label"></div>
+            <p class="sublabel" id="leading-label">Line spacing</p>
+            <div class="segmented" id="leading-picker" role="radiogroup" aria-labelledby="leading-label"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="set-group" aria-labelledby="sg-listen">
+        <h3 id="sg-listen">Listening</h3>
+        <div class="set-card">
+          <div class="set-row stacked">
+            <label class="set-text" for="set-voice"><span class="set-name">Voice</span></label>
+            <div class="row nowrap">
+              <select id="set-voice"></select>
+              <button class="btn ghost" id="test-voice" type="button">Test</button>
+            </div>
+            <small id="voice-hint"></small>
+          </div>
+          <div class="set-row stacked">
+            <label class="set-text" for="set-rate"><span class="set-name">Speed</span><small id="rate-label"></small></label>
+            <input type="range" id="set-rate" min="0.6" max="1.6" step="0.05">
+          </div>
+          <label class="set-row">
+            <span class="set-text"><span class="set-name">Mark as read when finished</span><small>After listening to the whole reading</small></span>
+            <input type="checkbox" class="switch" id="set-automark">
+          </label>
+        </div>
+      </section>
+
+      <section class="set-group sync" id="sync-section" aria-labelledby="sg-sync">
+        <h3 id="sg-sync">Sync across devices</h3>
+        <div class="set-card">
+          <div class="set-row stacked" id="sync-signed-out">
+            <small>Sign in with your email to keep your progress and schedule the same on your phone, tablet and computer.</small>
+            <div class="row nowrap">
+              <input type="email" id="sync-email-input" placeholder="you@example.com" autocomplete="email" inputmode="email">
+              <button class="btn primary" id="sync-send" type="button">Email me a link</button>
+            </div>
+            <div id="sync-paste" hidden>
+              <small>Using the home-screen app on iPhone? Tapping the link signs in Safari instead. Long-press the link in the email, choose Copy, and paste it here:</small>
+              <div class="row nowrap">
+                <input type="url" id="sync-link-input" placeholder="Paste sign-in link">
+                <button class="btn ghost" id="sync-paste-btn" type="button">Sign in</button>
+              </div>
+            </div>
+            <small class="sync-message" id="sync-message" hidden></small>
+          </div>
+          <div class="set-row stacked" id="sync-signed-in" hidden>
+            <span class="set-text"><span class="set-name">Signed in as <strong id="sync-email"></strong></span><small id="sync-status"></small></span>
+            <div class="row">
+              <button class="btn ghost" id="sync-now" type="button">Sync now</button>
+              <button class="btn ghost" id="sync-signout" type="button">Sign out</button>
             </div>
           </div>
-          <small class="sync-message" id="sync-message" hidden></small>
         </div>
-        <div id="sync-signed-in" hidden>
-          <p class="sync-who">Signed in as <strong id="sync-email"></strong></p>
-          <small id="sync-status"></small>
-          <div class="row">
-            <button class="btn ghost" id="sync-now" type="button">Sync now</button>
-            <button class="btn ghost" id="sync-signout" type="button">Sign out</button>
+      </section>
+
+      <section class="set-group" aria-labelledby="sg-backup">
+        <h3 id="sg-backup">Backup</h3>
+        <div class="set-card">
+          <div class="set-row stacked">
+            <small>Save your progress to a file, or restore it from one.</small>
+            <div class="row">
+              <button class="btn ghost" id="export-btn" type="button">Export</button>
+              <label class="btn ghost file-btn">Import<input type="file" id="import-file" accept="application/json" hidden></label>
+            </div>
           </div>
         </div>
-      </div>
-      <hr>
-      <div class="field">
-        <p class="label">Theme</p>
-        <div class="themes" id="theme-picker" role="radiogroup" aria-label="Theme"></div>
-      </div>
-      <div class="field">
-        <p class="label">Reading text</p>
-        <div class="sample">
-          <p><span><sup>1</sup>Yahweh is my shepherd: I shall lack nothing. </span><span><sup>2</sup>He makes me lie down in green pastures. He leads me beside still waters.</span></p>
-          <small>Psalm 23:1&ndash;2</small>
-        </div>
-        <p class="sublabel" id="font-label">Font</p>
-        <div class="segmented fonts" id="font-picker" role="radiogroup" aria-labelledby="font-label"></div>
-        <p class="sublabel" id="size-label">Text size</p>
-        <div class="segmented" id="size-picker" role="radiogroup" aria-labelledby="size-label"></div>
-        <p class="sublabel" id="leading-label">Line spacing</p>
-        <div class="segmented" id="leading-picker" role="radiogroup" aria-labelledby="leading-label"></div>
-      </div>
-      <label>Plan start date
-        <input type="date" id="set-start">
-        <small>Day 1 of the plan falls on this date; each day after is the next reading.</small>
-        <button class="btn ghost share-inline" id="share-btn-settings" type="button">Share plan with this schedule</button>
-      </label>
-      <label>Group meets on
-        <select id="set-meet">
-          <option value="">Not in a group</option>
-          <option value="0">Sunday</option>
-          <option value="1">Monday</option>
-          <option value="2">Tuesday</option>
-          <option value="3">Wednesday</option>
-          <option value="4">Thursday</option>
-          <option value="5">Friday</option>
-          <option value="6">Saturday</option>
-        </select>
-        <small>Your week's readings run from the day after one meeting through the next, so you can review them together.</small>
-      </label>
-      <label>Translation
-        <select id="set-translation">
-          <option value="web">World English Bible (WEB)</option>
-          <option value="kjv">King James Version (KJV)</option>
-          <option value="asv">American Standard Version (ASV)</option>
-          <option value="bbe">Bible in Basic English (BBE)</option>
-          <option value="ylt">Young's Literal Translation (YLT)</option>
-          <option value="darby">Darby Translation</option>
-        </select>
-      </label>
-      <label>Voice
-        <select id="set-voice"></select>
-        <small id="voice-hint"></small>
-      </label>
-      <label>Reading speed
-        <input type="range" id="set-rate" min="0.6" max="1.6" step="0.05">
-        <small id="rate-label"></small>
-      </label>
-      <label class="check">
-        <input type="checkbox" id="set-automark"> Mark as read when listening finishes
-      </label>
-      <div class="row">
-        <button class="btn ghost" id="test-voice" type="button">Test voice</button>
-      </div>
-      <hr>
-      <p class="label">Backup</p>
-      <small>Progress is saved on this device. Export it to move to another device.</small>
-      <div class="row">
-        <button class="btn ghost" id="export-btn" type="button">Export progress</button>
-        <label class="btn ghost file-btn">Import<input type="file" id="import-file" accept="application/json" hidden></label>
-      </div>
+      </section>
+
       <p class="fine">Scripture text from <a href="https://bible-api.com" target="_blank" rel="noopener">bible-api.com</a> (public-domain translations).</p>
     </form>
   </dialog>
