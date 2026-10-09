@@ -603,7 +603,6 @@ async function sharePlan() {
   }
 }
 
-$('#share-btn').addEventListener('click', sharePlan);
 $('#share-btn-settings').addEventListener('click', sharePlan);
 
 function handleSharedLink() {
