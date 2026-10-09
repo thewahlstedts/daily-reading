@@ -14,13 +14,14 @@ Plain static files, no build step, no package manager. Classic `<script>` tags s
 | `vendor/supabase-2.117.1.js` | Pinned supabase-js UMD build (vendored so it works offline and can't change under us) |
 | `app.js` | Everything else: `state` + `save()`, plan parsing, rendering, reader, speech, settings, themes, reading text, sharing |
 | `sync.js` | Optional Supabase sync; hooks in via `window.onStateSaved` |
-| `sw.js` | Service worker: app shell network-first (`cache: 'no-cache'`), bible-api.com responses cache-first |
+| `sw.js` | Service worker: app shell network-first (`cache: 'no-cache'`), bible.helloao.org responses cache-first |
 | `plan.txt` | The plan: one reading per line, `Book N` or `Book N-M` |
 
 - **State:** one `state` object in localStorage (`daily-reading:v1`), always passed through `sanitizeState()`. Add new fields to `defaults` *and* `sanitizeState()`.
 - **Schedule:** reading `i` is due on `start + i` days. "Next" is the first unread index.
 - **Group weeks:** with `meetDay` set (0 = Sun … 6 = Sat), a week runs from the day after one meeting through the next meeting day (`weekWindow()`). Only unread readings *before* the current week count as behind (`dueBefore()`). The home page shows the current week; later readings stay collapsed behind "Show all upcoming".
-- **Scripture:** from bible-api.com, one chapter per request (it rejects chapter ranges). It is public-domain translations only.
+- **Scripture:** from the Free Use Bible API (bible.helloao.org, no key), one chapter per request; `BIBLES` lists the offered translations (`src` = HelloAO id) and `BOOK_CODES` maps plan book names to USFM codes.
+- **Narration:** for `narrated` Bibles (BSB), `thisChapterAudioLinks` gives human-read MP3s per narrator plus per-verse start times (`*.audioTimings.json`, `verses[n-1]`). `narrateFrom()` plays them in one `<audio>` element, highlighting on `timeupdate`; other translations use speech synthesis. Media Session gives lock-screen controls. (Note: Chrome won't load media in a hidden/background tab, so automated browser tests can't hear playback.)
 - **Speech:** Web Speech API, one utterance per verse. `gen` counter invalidates stale utterance callbacks.
 - **Sync:** `SYNCED_FIELDS` (start, read, translation, automark, meetDay) are synced; theme, voice, speed and reading text stay per device. If only the local copy changed, it wins. If both changed, checkmarks are merged (union) and account settings win.
 
@@ -33,7 +34,7 @@ Plain static files, no build step, no package manager. Classic `<script>` tags s
 
 ## Security rules (must follow)
 
-- **Never put untrusted text into `innerHTML`.** Use `textContent` / DOM nodes, or wrap values in `escapeHtml()`. Untrusted means: API responses (bible-api, Supabase), imported files, synced data, device voice names, error messages.
+- **Never put untrusted text into `innerHTML`.** Use `textContent` / DOM nodes, or wrap values in `escapeHtml()`. Untrusted means: API responses (HelloAO, Supabase), imported files, synced data, device voice names, error messages.
 - **All loaded or received state goes through `sanitizeState()`.** That includes localStorage, imports and the sync server. Never spread raw objects into `state`.
 - **Content Security Policy** is a `<meta>` in `index.html`. No inline scripts or inline event handlers (`onclick=` etc.); put code in `.js` files. When adding a new external service, add it to `connect-src` (or the right directive) deliberately. Never add `'unsafe-eval'` or `'unsafe-inline'` to `script-src`.
 - **Supabase keys:** only the *publishable* key (`sb_publishable_…`) belongs in client code. Never commit or paste the secret / `service_role` keys or the DB password. The DB password is in macOS Keychain: service "Supabase daily-reading DB", account `daily-reading`.

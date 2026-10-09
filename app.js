@@ -1,7 +1,6 @@
 'use strict';
 
 const STORE_KEY = 'daily-reading:v1';
-const API = 'https://bible-api.com/';
 const $ = (sel) => document.querySelector(sel);
 
 // ---------- State ----------
@@ -9,7 +8,8 @@ const $ = (sel) => document.querySelector(sel);
 const defaults = {
   start: '2026-09-01',  // default plan start; change in Settings
   read: {},            // plan index -> ISO date it was marked read
-  translation: 'web',
+  translation: 'bsb',
+  narrator: 'hays',
   voice: '',
   rate: 1,
   automark: true,
@@ -31,7 +31,28 @@ function load() {
 
 // Saved state can come from this device, an imported backup file, or the sync
 // server. Treat it all as untrusted: keep only known fields with sane values.
-const TRANSLATIONS = ['web', 'kjv', 'asv', 'bbe', 'ylt', 'darby'];
+// Bibles from the free HelloAO API (bible.helloao.org). `src` is its translation id.
+const BIBLES = [
+  { id: 'bsb', name: 'Berean Standard (BSB)', src: 'BSB', narrated: true },
+  { id: 'net', name: 'NET Bible', src: 'eng_net' },
+  { id: 'web', name: 'World English (WEB)', src: 'ENGWEBP' },
+  { id: 'lsv', name: 'Literal Standard (LSV)', src: 'eng_lsv' },
+  { id: 'kjv', name: 'King James (KJV)', src: 'eng_kjv' },
+  { id: 'asv', name: 'American Standard (ASV)', src: 'eng_asv' },
+  { id: 'ylt', name: "Young's Literal (YLT)", src: 'eng_ylt' },
+  { id: 'gnv', name: 'Geneva 1599', src: 'eng_gnv' },
+  { id: 'darby', name: 'Darby', src: 'eng_dby' },
+  { id: 'bbe', name: 'Basic English (BBE)', src: 'eng_bbe' },
+];
+const TRANSLATIONS = BIBLES.map((b) => b.id);
+
+// Human narrators for narrated Bibles (all have per-verse timings), or the device's voice.
+const NARRATORS = [
+  { id: 'hays', name: 'Hays' },
+  { id: 'souer', name: 'Souer' },
+  { id: 'david', name: 'David' },
+  { id: 'device', name: 'Device voice' },
+];
 
 function sanitizeState(raw) {
   const s = { ...defaults };
@@ -45,6 +66,7 @@ function sanitizeState(raw) {
     }
   }
   if (TRANSLATIONS.includes(raw.translation)) s.translation = raw.translation;
+  if (NARRATORS.some((n) => n.id === raw.narrator)) s.narrator = raw.narrator;
   if (typeof raw.voice === 'string' && raw.voice.length <= 300) s.voice = raw.voice;
   if (typeof raw.rate === 'number' && raw.rate >= 0.5 && raw.rate <= 2) s.rate = raw.rate;
   if (typeof raw.automark === 'boolean') s.automark = raw.automark;
@@ -340,27 +362,77 @@ $('#jump-btn').addEventListener('click', () => {
 
 // ---------- Scripture ----------
 
+const HELLOAO = 'https://bible.helloao.org/api/';
+const BOOK_CODES = {
+  Genesis: 'GEN', Exodus: 'EXO', Leviticus: 'LEV', Numbers: 'NUM', Deuteronomy: 'DEU', Joshua: 'JOS', Judges: 'JDG', Ruth: 'RUT',
+  '1 Samuel': '1SA', '2 Samuel': '2SA', '1 Kings': '1KI', '2 Kings': '2KI', '1 Chronicles': '1CH', '2 Chronicles': '2CH',
+  Ezra: 'EZR', Nehemiah: 'NEH', Esther: 'EST', Job: 'JOB', Psalm: 'PSA', Psalms: 'PSA', Proverbs: 'PRO', Ecclesiastes: 'ECC',
+  'Song of Solomon': 'SNG', Isaiah: 'ISA', Jeremiah: 'JER', Lamentations: 'LAM', Ezekiel: 'EZK', Daniel: 'DAN', Hosea: 'HOS',
+  Joel: 'JOL', Amos: 'AMO', Obadiah: 'OBA', Jonah: 'JON', Micah: 'MIC', Nahum: 'NAM', Habakkuk: 'HAB', Zephaniah: 'ZEP',
+  Haggai: 'HAG', Zechariah: 'ZEC', Malachi: 'MAL', Matthew: 'MAT', Mark: 'MRK', Luke: 'LUK', John: 'JHN', Acts: 'ACT',
+  Romans: 'ROM', '1 Corinthians': '1CO', '2 Corinthians': '2CO', Galatians: 'GAL', Ephesians: 'EPH', Philippians: 'PHP',
+  Colossians: 'COL', '1 Thessalonians': '1TH', '2 Thessalonians': '2TH', '1 Timothy': '1TI', '2 Timothy': '2TI', Titus: 'TIT',
+  Philemon: 'PHM', Hebrews: 'HEB', James: 'JAS', '1 Peter': '1PE', '2 Peter': '2PE', '1 John': '1JN', '2 John': '2JN',
+  '3 John': '3JN', Jude: 'JUD', Revelation: 'REV',
+};
+
+const bible = () => BIBLES.find((b) => b.id === state.translation) || BIBLES[0];
 const passageCache = new Map();
 
 function apiBook(book) {
   return book === 'Psalm' ? 'Psalms' : book;
 }
 
+// Flatten HelloAO verse content (strings, poem lines, footnote markers) to plain text.
+function verseText(content) {
+  return content
+    .map((part) => (typeof part === 'string' ? part : part.text || ''))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Returns { verses: [{ n, text }], audio: { narrator: { url, timings } } | null }
 async function fetchChapter(book, chapter) {
-  const key = `${state.translation}|${book}|${chapter}`;
+  const b = bible();
+  const code = BOOK_CODES[book];
+  if (!code) throw new Error(`Unknown book "${book}"`);
+  const key = `${b.id}|${code}|${chapter}`;
   if (passageCache.has(key)) return passageCache.get(key);
-  const url = `${API}${encodeURIComponent(`${apiBook(book)} ${chapter}`)}?translation=${encodeURIComponent(state.translation)}`;
-  const res = await fetch(url);
+
+  const res = await fetch(`${HELLOAO}${encodeURIComponent(b.src)}/${code}/${chapter}.json`);
   if (!res.ok) throw new Error(`Couldn't load ${book} ${chapter} (${res.status})`);
   const data = await res.json();
-  const verses = data.verses.map((v) => ({ n: v.verse, text: v.text.replace(/\s+/g, ' ').trim() }));
-  passageCache.set(key, verses);
-  return verses;
+  const verses = (data.chapter?.content || [])
+    .filter((c) => c.type === 'verse' && Number.isInteger(c.number) && Array.isArray(c.content))
+    .map((c) => ({ n: c.number, text: verseText(c.content) }));
+
+  let audio = null;
+  if (b.narrated && data.thisChapterAudioLinks) {
+    audio = {};
+    for (const n of NARRATORS) {
+      const url = data.thisChapterAudioLinks[n.id];
+      const timingsPath = data.thisChapterAudioTimings?.[n.id];
+      if (typeof url === 'string' && url.startsWith('https://') && typeof timingsPath === 'string') {
+        audio[n.id] = { url, timingsUrl: new URL(timingsPath, HELLOAO).toString() };
+      }
+    }
+  }
+  const result = { verses, audio };
+  passageCache.set(key, result);
+  return result;
+}
+
+async function fetchTimings(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('timings');
+  const data = await res.json();
+  return Array.isArray(data.verses) ? data.verses.filter((t) => typeof t === 'number') : [];
 }
 
 // ---------- Reader + speech ----------
 
-let current = null;      // { index, segments: [{ el, speak }] }
+let current = null;      // { index, segments: [{ el, speak, ci, n }], narration: [{ url, timings }] | null }
 let pos = 0;             // segment being spoken
 let playing = false;
 let gen = 0;             // bumps whenever playback is interrupted, to ignore stale utterance events
@@ -370,6 +442,7 @@ const reader = $('#reader');
 
 async function openReader(index, autoplay) {
   stopSpeech();
+  narrationChapter = -1;
   const item = plan[index];
   current = { index, segments: [] };
   pos = 0;
@@ -385,12 +458,16 @@ async function openReader(index, autoplay) {
   try {
     const chapters = await Promise.all(item.chapters.map((c) => fetchChapter(item.book, c)));
     if (current?.index !== index) return;
+    current.narration = useNarration() && chapters.every((ch) => ch.audio?.[state.narrator])
+      ? chapters.map((ch) => ({ ...ch.audio[state.narrator], timings: null }))
+      : null;
+    $('#reader-sub').textContent = `${fmtLong.format(dateForIndex(index))} · ${bible().name}${current.narration ? ` · read by ${narratorName()}` : ''}`;
     body.innerHTML = '';
-    chapters.forEach((verses, ci) => {
+    chapters.forEach(({ verses }, ci) => {
       const heading = document.createElement('h3');
       heading.textContent = `${item.book} ${item.chapters[ci]}`;
       body.append(heading);
-      current.segments.push({ el: heading, speak: `${apiBook(item.book) === 'Psalms' ? 'Psalm' : item.book} chapter ${item.chapters[ci]}.` });
+      current.segments.push({ el: heading, ci, n: 0, speak: `${apiBook(item.book) === 'Psalms' ? 'Psalm' : item.book} chapter ${item.chapters[ci]}.` });
       const p = document.createElement('p');
       verses.forEach((v) => {
         const span = document.createElement('span');
@@ -400,7 +477,7 @@ async function openReader(index, autoplay) {
         span.append(sup);
         span.append(document.createTextNode(v.text + ' '));
         span.dataset.seg = current.segments.length;
-        current.segments.push({ el: span, speak: v.text });
+        current.segments.push({ el: span, ci, n: v.n, speak: v.text });
         p.append(span);
       });
       body.append(p);
@@ -453,7 +530,8 @@ function setRate(r) {
   updateRateBtn();
   $('#set-rate').value = r;
   $('#rate-label').textContent = `${r.toFixed(2)}×`;
-  if (playing) speakFrom(pos);
+  if (current?.narration) narrationAudio.playbackRate = r;
+  else if (playing) speakFrom(pos);
 }
 
 function updateMarkBtn() {
@@ -484,6 +562,7 @@ function play() {
 function pause() {
   gen++;
   speechSynthesis.cancel();
+  narrationAudio.pause();
   setPlaying(false);
 }
 
@@ -503,22 +582,14 @@ function skip(delta) {
 // Speak one verse at a time: keeps highlighting in sync and avoids the
 // browser cutting off long utterances.
 function speakFrom(i) {
+  if (current?.narration) return narrateFrom(i);
   gen++;
   const myGen = gen;
   speechSynthesis.cancel();
   setPlaying(true);
   const step = (j) => {
     if (myGen !== gen) return;
-    if (!current || j >= current.segments.length) {
-      setPlaying(false);
-      pos = 0;
-      highlight(-1);
-      if (current && state.automark && !isRead(current.index)) {
-        setRead(current.index, true);
-        updateMarkBtn();
-      }
-      return;
-    }
+    if (!current || j >= current.segments.length) return finishListening();
     pos = j;
     highlight(j);
     const u = new SpeechSynthesisUtterance(current.segments[j].speak);
@@ -535,6 +606,110 @@ function speakFrom(i) {
   };
   // Small delay lets cancel() settle (Safari drops an immediate speak otherwise).
   setTimeout(() => step(i), 60);
+}
+
+function finishListening() {
+  setPlaying(false);
+  pos = 0;
+  highlight(-1);
+  if (current && state.automark && !isRead(current.index)) {
+    setRead(current.index, true);
+    updateMarkBtn();
+  }
+}
+
+// ---------- Human narration ----------
+
+// One <audio> per chapter recording; per-verse start times drive highlighting.
+// Unlike speech synthesis, audio keeps playing with the screen locked.
+const narrationAudio = new Audio();
+narrationAudio.preload = 'auto';
+let narrationChapter = -1;
+
+const useNarration = () => bible().narrated && state.narrator !== 'device';
+const narratorName = () => NARRATORS.find((n) => n.id === state.narrator)?.name || '';
+
+async function chapterTimings(ci) {
+  const ch = current.narration[ci];
+  if (!ch.timings) ch.timings = await fetchTimings(ch.timingsUrl);
+  return ch.timings;
+}
+
+// Start time for a segment: chapter headings start at 0, verse n at timings[n - 1].
+async function segmentStart(i) {
+  const seg = current.segments[i];
+  if (!seg.n) return 0;
+  const t = await chapterTimings(seg.ci);
+  return t[seg.n - 1] ?? 0;
+}
+
+async function narrateFrom(i) {
+  gen++;
+  const myGen = gen;
+  speechSynthesis.cancel();
+  const seg = current.segments[i];
+  try {
+    const start = await segmentStart(i);
+    if (myGen !== gen || !current) return;
+    if (narrationChapter !== seg.ci) {
+      narrationAudio.src = current.narration[seg.ci].url;
+      narrationChapter = seg.ci;
+    }
+    narrationAudio.playbackRate = state.rate;
+    narrationAudio.currentTime = start;
+    pos = i;
+    highlight(i);
+    await narrationAudio.play();
+    setPlaying(true);
+    updateMediaSession();
+  } catch (err) {
+    if (myGen === gen) setPlaying(false);
+  }
+}
+
+narrationAudio.addEventListener('timeupdate', () => {
+  if (!playing || !current?.narration) return;
+  const timings = current.narration[narrationChapter]?.timings;
+  if (!timings) return;
+  const t = narrationAudio.currentTime;
+  // Last segment in this chapter whose start has passed.
+  let at = -1;
+  current.segments.forEach((seg, i) => {
+    if (seg.ci === narrationChapter && (seg.n ? (timings[seg.n - 1] ?? Infinity) : 0) <= t) at = i;
+  });
+  if (at !== -1 && at !== pos) {
+    pos = at;
+    highlight(at);
+  }
+});
+
+narrationAudio.addEventListener('ended', () => {
+  if (!current?.narration) return;
+  const nextChapter = narrationChapter + 1;
+  if (nextChapter >= current.narration.length) {
+    narrationChapter = -1;
+    return finishListening();
+  }
+  narrateFrom(current.segments.findIndex((s) => s.ci === nextChapter));
+});
+
+// Lock-screen / headphone controls.
+function updateMediaSession() {
+  if (!('mediaSession' in navigator) || !current) return;
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: plan[current.index].ref,
+    artist: `${bible().name} · ${narratorName()}`,
+    album: 'Daily Reading',
+    artwork: [{ src: 'icon-512.png', sizes: '512x512', type: 'image/png' }],
+  });
+}
+
+if ('mediaSession' in navigator) {
+  const ms = navigator.mediaSession;
+  ms.setActionHandler('play', () => play());
+  ms.setActionHandler('pause', () => pause());
+  ms.setActionHandler('previoustrack', () => skip(-1));
+  ms.setActionHandler('nexttrack', () => skip(1));
 }
 
 async function setPlaying(on) {
@@ -709,6 +884,7 @@ $('#settings-btn').addEventListener('click', () => {
   $('#set-meet').value = state.meetDay ?? '';
   renderShareSummary();
   $('#set-translation').value = state.translation;
+  renderListening();
   $('#set-rate').value = state.rate;
   $('#rate-label').textContent = `${state.rate.toFixed(2)}×`;
   $('#set-automark').checked = state.automark;
@@ -732,7 +908,22 @@ $('#set-meet').addEventListener('change', (e) => {
   render();
   renderShareSummary();
 });
-$('#set-translation').addEventListener('change', (e) => { state.translation = e.target.value; save(); });
+$('#set-translation').innerHTML = BIBLES.map((b) => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
+$('#set-narrator').innerHTML = NARRATORS.map((n) => `<option value="${n.id}">${n.id === 'device' ? n.name : `${n.name} (human)`}</option>`).join('');
+
+// Human narration exists only for narrated Bibles; otherwise the device voice reads.
+function renderListening() {
+  const narrated = bible().narrated;
+  $('#set-narrator').value = state.narrator;
+  $('#set-narrator').disabled = !narrated;
+  $('#narrator-hint').textContent = narrated
+    ? 'Recorded human narration of the Berean Standard Bible'
+    : 'Human narration is available with the Berean Standard Bible';
+  $('#voice-row').hidden = useNarration();
+}
+
+$('#set-translation').addEventListener('change', (e) => { state.translation = e.target.value; save(); renderListening(); });
+$('#set-narrator').addEventListener('change', (e) => { state.narrator = e.target.value; save(); renderListening(); });
 $('#set-voice').addEventListener('change', (e) => { state.voice = e.target.value; save(); });
 $('#set-rate').addEventListener('input', (e) => setRate(+e.target.value));
 $('#set-automark').addEventListener('change', (e) => { state.automark = e.target.checked; save(); });
@@ -768,7 +959,8 @@ $('#import-file').addEventListener('change', async (e) => {
     render();
     settings.close();
   } catch {
-    $('#voice-hint').textContent = "That file doesn't look like a Daily Reading backup.";
+    undoCatchUp = null;
+    showToast("That file doesn't look like a Daily Reading backup.");
   }
   e.target.value = '';
 });

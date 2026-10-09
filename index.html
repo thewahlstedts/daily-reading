@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <!-- Security: only our own scripts run, and the page may only talk to the services it uses. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://bible-api.com https://rnpuwanpgundhfmvzrne.supabase.co wss://rnpuwanpgundhfmvzrne.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src https://audio.bible.helloao.org; connect-src 'self' https://bible.helloao.org https://rnpuwanpgundhfmvzrne.supabase.co wss://rnpuwanpgundhfmvzrne.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>Daily Reading</title>
   <meta name="theme-color" id="theme-color" content="#f7f3ec">
@@ -165,14 +165,7 @@
         <div class="set-card">
           <label class="set-row">
             <span class="set-text"><span class="set-name">Translation</span></span>
-            <select id="set-translation">
-              <option value="web">World English (WEB)</option>
-              <option value="kjv">King James (KJV)</option>
-              <option value="asv">American Standard (ASV)</option>
-              <option value="bbe">Basic English (BBE)</option>
-              <option value="ylt">Young's Literal (YLT)</option>
-              <option value="darby">Darby</option>
-            </select>
+            <select id="set-translation"></select>
           </label>
           <div class="set-row stacked">
             <span class="set-text"><span class="set-name">Theme</span></span>
@@ -197,8 +190,12 @@
       <section class="set-group" aria-labelledby="sg-listen">
         <h3 id="sg-listen">Listening</h3>
         <div class="set-card">
-          <div class="set-row stacked">
-            <label class="set-text" for="set-voice"><span class="set-name">Voice</span></label>
+          <label class="set-row">
+            <span class="set-text"><span class="set-name">Narrator</span><small id="narrator-hint"></small></span>
+            <select id="set-narrator"></select>
+          </label>
+          <div class="set-row stacked" id="voice-row">
+            <label class="set-text" for="set-voice"><span class="set-name">Device voice</span></label>
             <div class="row nowrap">
               <select id="set-voice"></select>
               <button class="btn ghost" id="test-voice" type="button">Test</button>
@@ -257,7 +254,7 @@
         </div>
       </section>
 
-      <p class="fine">Scripture text from <a href="https://bible-api.com" target="_blank" rel="noopener">bible-api.com</a> (public-domain translations).</p>
+      <p class="fine">Scripture text and narration from the <a href="https://bible.helloao.org" target="_blank" rel="noopener">Free Use Bible API</a>. Berean Standard Bible text and audio are in the public domain (<a href="https://berean.bible" target="_blank" rel="noopener">berean.bible</a>).</p>
     </form>
   </dialog>
 
