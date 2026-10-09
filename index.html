@@ -48,6 +48,24 @@
 
     <section class="card today" id="today-card"></section>
 
+    <section id="week" hidden>
+      <div class="section-head">
+        <h2 id="week-title">This week</h2>
+        <div class="week-nav">
+          <button class="icon-btn" id="week-prev" aria-label="Previous week">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <button class="link-btn" id="week-today" hidden>This week</button>
+          <button class="icon-btn" id="week-next" aria-label="Next week">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+      </div>
+      <p class="week-meta" id="week-meta"></p>
+      <div class="bar week-bar"><div class="fill" id="week-fill"></div></div>
+      <ul class="list" id="week-list"></ul>
+    </section>
+
     <section id="behind" hidden>
       <div class="section-head">
         <h2>Catch up</h2>
@@ -61,6 +79,7 @@
         <h2 id="plan-heading">Up next</h2>
         <div class="row">
           <button class="link-btn" id="jump-btn" hidden>Jump to today</button>
+          <button class="link-btn" id="more-btn"></button>
           <button class="link-btn" id="completed-btn"></button>
         </div>
       </div>
@@ -161,7 +180,20 @@
       <label>Plan start date
         <input type="date" id="set-start">
         <small>Day 1 of the plan falls on this date; each day after is the next reading.</small>
-        <button class="btn ghost share-inline" id="share-btn-settings" type="button">Share plan with this start date</button>
+        <button class="btn ghost share-inline" id="share-btn-settings" type="button">Share plan with this schedule</button>
+      </label>
+      <label>Group meets on
+        <select id="set-meet">
+          <option value="">Not in a group</option>
+          <option value="0">Sunday</option>
+          <option value="1">Monday</option>
+          <option value="2">Tuesday</option>
+          <option value="3">Wednesday</option>
+          <option value="4">Thursday</option>
+          <option value="5">Friday</option>
+          <option value="6">Saturday</option>
+        </select>
+        <small>Your week's readings run from the day after one meeting through the next, so you can review them together.</small>
       </label>
       <label>Translation
         <select id="set-translation">

@@ -1,6 +1,6 @@
 # Daily Reading
 
-Installable web app (PWA) for a one-year Bible reading plan: today's reading, progress tracking, read-aloud, themes, reading-text options, shareable start date, and optional cross-device sync.
+Installable web app (PWA) for a one-year Bible reading plan, built for a group that meets weekly to review the week's readings: weekly progress, read-aloud, themes, reading-text options, shareable schedule (start date + meeting day), and optional cross-device sync.
 
 Live: https://thewahlstedts.github.io/daily-reading/ (GitHub Pages, served from `main`, root). Pushing to `main` deploys in about a minute.
 
@@ -19,9 +19,10 @@ Plain static files, no build step, no package manager. Classic `<script>` tags s
 
 - **State:** one `state` object in localStorage (`daily-reading:v1`), always passed through `sanitizeState()`. Add new fields to `defaults` *and* `sanitizeState()`.
 - **Schedule:** reading `i` is due on `start + i` days. "Next" is the first unread index.
+- **Group weeks:** with `meetDay` set (0 = Sun … 6 = Sat), a week runs from the day after one meeting through the next meeting day (`weekWindow()`). Only unread readings *before* the current week count as behind (`dueBefore()`). The home page shows the current week; later readings stay collapsed behind "Show all upcoming".
 - **Scripture:** from bible-api.com, one chapter per request (it rejects chapter ranges). It is public-domain translations only.
 - **Speech:** Web Speech API, one utterance per verse. `gen` counter invalidates stale utterance callbacks.
-- **Sync:** `SYNCED_FIELDS` (start, read, translation, automark) are synced; theme, voice, speed and reading text stay per device. If only the local copy changed, it wins. If both changed, checkmarks are merged (union) and account settings win.
+- **Sync:** `SYNCED_FIELDS` (start, read, translation, automark, meetDay) are synced; theme, voice, speed and reading text stay per device. If only the local copy changed, it wins. If both changed, checkmarks are merged (union) and account settings win.
 
 ## Conventions
 

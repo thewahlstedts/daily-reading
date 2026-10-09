@@ -8,7 +8,7 @@
 const SUPABASE_URL = 'https://rnpuwanpgundhfmvzrne.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_bBXg37-lo3GlX-uQorMfDA_0PKEsVwJ'; // publishable: safe in the browser, access is enforced by RLS
 const SYNC_KEY = 'daily-reading:sync';
-const SYNCED_FIELDS = ['start', 'read', 'translation', 'automark'];
+const SYNCED_FIELDS = ['start', 'read', 'translation', 'automark', 'meetDay'];
 
 const sb = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' },
@@ -86,7 +86,7 @@ async function pull({ firstSignIn = false } = {}) {
     // Both sides changed: keep every reading checked on either side; account settings win.
     syncing = true;
     state.read = { ...(remote.read || {}), ...state.read };
-    ['start', 'translation', 'automark'].forEach((k) => { if (remote[k] != null) state[k] = remote[k]; });
+    ['start', 'translation', 'automark', 'meetDay'].forEach((k) => { if (k in remote) state[k] = remote[k]; });
     save();
     syncing = false;
     render();
@@ -96,7 +96,7 @@ async function pull({ firstSignIn = false } = {}) {
 
   if (remoteNewer) {
     syncing = true;
-    SYNCED_FIELDS.forEach((k) => { if (remote[k] != null) state[k] = remote[k]; });
+    SYNCED_FIELDS.forEach((k) => { if (k in remote) state[k] = remote[k]; });
     save();
     syncing = false;
     meta.pushed = JSON.stringify(syncedSnapshot());

@@ -18,6 +18,7 @@ const defaults = {
   font: 'classic',
   textSize: 2,         // index into SIZES
   leading: 'normal',
+  meetDay: null,       // 0 = Sunday … 6 = Saturday; null = not in a group
 };
 
 function load() {
@@ -52,6 +53,7 @@ function sanitizeState(raw) {
   if (str(raw.font, /^[a-z-]{1,20}$/)) s.font = raw.font;
   if (Number.isInteger(raw.textSize) && raw.textSize >= 0 && raw.textSize <= 4) s.textSize = raw.textSize;
   if (str(raw.leading, /^[a-z]{1,20}$/)) s.leading = raw.leading;
+  if (Number.isInteger(raw.meetDay) && raw.meetDay >= 0 && raw.meetDay <= 6) s.meetDay = raw.meetDay;
   return s;
 }
 
@@ -119,12 +121,65 @@ function setRead(i, value) {
 
 const checkSvg = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>';
 
+// ---------- Group weeks ----------
+
+// With a meeting day set, the goal is weekly: a week runs from the day after
+// one meeting through the next meeting day. Only readings from before the
+// current week count as behind.
+let weekOffset = 0;   // 0 = current week; -1 = last week, etc.
+
+function weekWindow(offset = 0) {
+  if (state.meetDay == null) return null;
+  const now = new Date();
+  const toMeet = (state.meetDay - now.getDay() + 7) % 7;
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + toMeet + offset * 7);
+  const endIdx = dayNumber(isoDate(end)) - dayNumber(state.start);
+  return { startIdx: endIdx - 6, endIdx, meet: end, daysToMeet: toMeet + offset * 7 };
+}
+
+// Index before which unread readings count as behind.
+function dueBefore() {
+  const w = weekWindow(0);
+  return w ? w.startIdx : todayIndex();
+}
+
+const fmtDay = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+
+function renderWeek(t) {
+  const w = weekWindow(weekOffset);
+  $('#week').hidden = !w;
+  if (!w) return null;
+  const idxs = [];
+  for (let i = Math.max(0, w.startIdx); i <= Math.min(plan.length - 1, w.endIdx); i++) idxs.push(i);
+  const done = idxs.filter(isRead).length;
+
+  $('#week-title').textContent = weekOffset === 0 ? 'This week' : weekOffset === -1 ? 'Last week' : weekOffset === 1 ? 'Next week' : `Week of ${fmtShort.format(dateForIndex(w.startIdx))}`;
+  $('#week-today').hidden = weekOffset === 0;
+  const range = `${fmtDay.format(dateForIndex(w.startIdx))} – ${fmtDay.format(w.meet)}`;
+  let when;
+  if (w.daysToMeet === 0) when = 'Meeting today';
+  else if (w.daysToMeet === 1) when = 'Meeting tomorrow';
+  else if (w.daysToMeet > 1) when = `Meeting in ${w.daysToMeet} days`;
+  else when = `Met ${fmtDay.format(w.meet)}`;
+  $('#week-meta').innerHTML = idxs.length
+    ? `${range} · <strong>${done} of ${idxs.length} read</strong> · ${when}`
+    : `${range} · Outside the plan`;
+  $('#week-fill').style.width = idxs.length ? `${(done / idxs.length) * 100}%` : '0';
+  $('#week-list').innerHTML = idxs.map((i) => itemHtml(i, t, dueBefore())).join('');
+  return weekWindow(0);
+}
+
+$('#week-prev').addEventListener('click', () => { weekOffset--; render(); });
+$('#week-next').addEventListener('click', () => { weekOffset++; render(); });
+$('#week-today').addEventListener('click', () => { weekOffset = 0; render(); });
+
 function render() {
   const t = todayIndex();
   const total = plan.length;
   const doneCount = Object.keys(state.read).length;
+  const due = dueBefore();
   const behind = [];
-  for (let i = 0; i < Math.min(t, total); i++) if (!isRead(i)) behind.push(i);
+  for (let i = 0; i < Math.min(due, total); i++) if (!isRead(i)) behind.push(i);
 
   $('#today-date').textContent = fmtLong.format(new Date());
 
@@ -145,7 +200,9 @@ function render() {
   } else {
     const when = fmtLong.format(dateForIndex(next));
     let label;
-    if (next < t) label = `<p class="eyebrow late">Catch up · ${when}</p>`;
+    const thisWeek = weekWindow(0);
+    if (next < due) label = `<p class="eyebrow late">Catch up · ${when}</p>`;
+    else if (thisWeek && next !== t && next <= thisWeek.endIdx) label = `<p class="eyebrow">This week · ${when}</p>`;
     else if (next === t) label = `<p class="eyebrow">Today's reading</p>`;
     else if (t < 0) label = `<p class="eyebrow">Plan starts ${when}</p>`;
     else label = `<p class="eyebrow done">✓ Today's done · Up next ${when}</p>`;
@@ -161,13 +218,26 @@ function render() {
   // Catch up (the featured reading is already shown above)
   const others = behind.filter((i) => i !== next);
   $('#behind').hidden = others.length === 0;
-  $('#behind-list').innerHTML = others.map((i) => itemHtml(i, t)).join('');
+  $('#behind-list').innerHTML = others.map((i) => itemHtml(i, t, due)).join('');
 
-  // Plan list: upcoming unread readings, or everything when showing completed
-  const show = state.showCompleted
-    ? plan.map((_, i) => i)
-    : plan.map((_, i) => i).filter((i) => !isRead(i) && i !== next && i >= t);
-  $('#plan-heading').textContent = state.showCompleted ? 'Full plan' : 'Up next';
+  // Group week (its readings aren't repeated in the list below)
+  const week = renderWeek(t);
+  const after = week ? week.endIdx + 1 : t;
+
+  // Plan list: kept short so the current week stays the focus. In a group the
+  // week section covers what's next; otherwise preview a few readings.
+  const upcoming = plan.map((_, i) => i).filter((i) => !isRead(i) && i !== next && i >= after);
+  const preview = week ? 0 : 6;
+  let show;
+  if (state.showCompleted) show = plan.map((_, i) => i);
+  else if (expandUpcoming) show = upcoming;
+  else show = upcoming.slice(0, preview);
+  const hiddenCount = upcoming.length - show.length;
+
+  $('#plan-heading').textContent = state.showCompleted ? 'Full plan' : week ? 'After this week' : 'Up next';
+  $('#more-btn').hidden = state.showCompleted || upcoming.length <= preview;
+  $('#more-btn').textContent = expandUpcoming ? 'Show less' : `Show all upcoming (${hiddenCount})`;
+  $('#completed-btn').hidden = !state.showCompleted && !expandUpcoming && doneCount === 0;
   $('#completed-btn').textContent = state.showCompleted ? 'Hide completed' : `Show completed (${doneCount})`;
   $('#jump-btn').hidden = !state.showCompleted;
 
@@ -179,16 +249,16 @@ function render() {
   });
   $('#plan-list').innerHTML = groups.size
     ? [...groups].map(([month, idxs]) =>
-        `<div class="month"><h3>${month}</h3><ul class="list">${idxs.map((i) => itemHtml(i, t)).join('')}</ul></div>`
+        `<div class="month"><h3>${month}</h3><ul class="list">${idxs.map((i) => itemHtml(i, t, due)).join('')}</ul></div>`
       ).join('')
-    : '<p class="empty">Nothing left after this one.</p>';
+    : upcoming.length || state.showCompleted ? '' : '<p class="empty">Nothing left after this one.</p>';
 }
 
-function itemHtml(i, t) {
+function itemHtml(i, t, lateBefore = t) {
   const cls = ['item'];
   if (isRead(i)) cls.push('read');
   if (i === t) cls.push('is-today');
-  if (i < t && !isRead(i)) cls.push('late');
+  if (i < lateBefore && !isRead(i)) cls.push('late');
   return `<li class="${cls.join(' ')}" data-index="${i}">
     <button class="tick" data-toggle="${i}" aria-label="${isRead(i) ? 'Mark unread' : 'Mark read'}">${checkSvg}</button>
     <span class="date">${fmtShort.format(dateForIndex(i))}</span>
@@ -214,7 +284,7 @@ let undoCatchUp = null;
 let toastTimer = null;
 
 $('#catchup-btn').addEventListener('click', () => {
-  const t = Math.min(todayIndex(), plan.length);
+  const t = Math.min(dueBefore(), plan.length);
   const marked = [];
   for (let i = 0; i < t; i++) {
     if (!isRead(i)) {
@@ -250,6 +320,12 @@ function hideToast() {
   $('#toast').hidden = true;
   undoCatchUp = null;
 }
+
+let expandUpcoming = false;
+$('#more-btn').addEventListener('click', () => {
+  expandUpcoming = !expandUpcoming;
+  render();
+});
 
 $('#completed-btn').addEventListener('click', () => {
   state.showCompleted = !state.showCompleted;
@@ -630,6 +706,7 @@ const settings = $('#settings');
 
 $('#settings-btn').addEventListener('click', () => {
   $('#set-start').value = state.start;
+  $('#set-meet').value = state.meetDay ?? '';
   $('#set-translation').value = state.translation;
   $('#set-rate').value = state.rate;
   $('#rate-label').textContent = `${state.rate.toFixed(2)}×`;
@@ -643,6 +720,12 @@ $('#settings-close').addEventListener('click', () => settings.close());
 $('#set-start').addEventListener('change', (e) => {
   if (!e.target.value) return;
   state.start = e.target.value;
+  save();
+  render();
+});
+$('#set-meet').addEventListener('change', (e) => {
+  state.meetDay = e.target.value === '' ? null : +e.target.value;
+  weekOffset = 0;
   save();
   render();
 });
@@ -696,12 +779,14 @@ function shareUrl() {
   url.search = '';
   url.hash = '';
   url.searchParams.set('start', state.start);
+  if (state.meetDay != null) url.searchParams.set('meet', state.meetDay);
   return url.toString();
 }
 
 async function sharePlan() {
   const url = shareUrl();
-  const text = `Read through the Bible with me — this plan started ${fmtLong.format(dateForIndex(0))}.`;
+  const meets = state.meetDay != null ? ` We meet on ${WEEKDAYS[state.meetDay]}s.` : '';
+  const text = `Read through the Bible with me — this plan started ${fmtLong.format(dateForIndex(0))}.${meets}`;
   if (navigator.share) {
     try {
       await navigator.share({ title: 'Daily Reading', text, url });
@@ -721,37 +806,47 @@ async function sharePlan() {
 
 $('#share-btn-settings').addEventListener('click', sharePlan);
 
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
 function handleSharedLink() {
   const params = new URLSearchParams(location.search);
-  const shared = params.get('start');
-  if (!shared) return;
+  if (!params.has('start') && !params.has('meet')) return;
   history.replaceState(null, '', location.pathname);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(shared) || isNaN(dayNumber(shared))) return;
-  if (shared === state.start) return;
 
-  let hasOwnStart = false;
-  try { hasOwnStart = 'start' in JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch {}
-  const [y, m, d] = shared.split('-').map(Number);
-  const sharedLabel = fmtLong.format(new Date(y, m - 1, d));
+  // Validate through the same sanitizer as any other untrusted state.
+  const shared = sanitizeState({ start: params.get('start'), meetDay: params.has('meet') ? Number(params.get('meet')) : undefined });
+  const changes = {};
+  if (params.get('start') === shared.start && shared.start !== state.start) changes.start = shared.start;
+  if (params.has('meet') && shared.meetDay != null && shared.meetDay !== state.meetDay) changes.meetDay = shared.meetDay;
+  if (!Object.keys(changes).length) return;
 
-  if (!hasOwnStart) {
-    // First visit: just adopt the sharer's schedule.
-    state.start = shared;
+  const apply = () => {
+    Object.assign(state, changes);
+    weekOffset = 0;
     save();
     render();
+  };
+  const describe = (s) => [
+    `starts ${fmtLong.format(new Date(...s.start.split('-').map((n, i) => (i === 1 ? n - 1 : +n))))}`,
+    s.meetDay != null ? `meets on ${WEEKDAYS[s.meetDay]}s` : null,
+  ].filter(Boolean).join(' and ');
+  const theirs = { start: changes.start ?? state.start, meetDay: changes.meetDay ?? state.meetDay };
+
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch {}
+  const hasOwnSchedule = 'start' in saved || saved.meetDay != null;
+
+  if (!hasOwnSchedule) {
+    // First visit: just adopt the sharer's schedule.
+    apply();
     undoCatchUp = null;
-    showToast(`Plan synced to start ${sharedLabel}`);
+    showToast(`Plan synced: ${describe(theirs)}`);
     return;
   }
 
-  $('#shared-text').textContent = `This link starts the plan on ${sharedLabel}. Your plan currently starts ${fmtLong.format(dateForIndex(0))}. Switch so your readings line up?`;
+  $('#shared-text').textContent = `This link's plan ${describe(theirs)}. Yours ${describe(state)}. Switch so your readings line up?`;
   $('#shared-banner').hidden = false;
-  $('#shared-use').onclick = () => {
-    state.start = shared;
-    save();
-    render();
-    $('#shared-banner').hidden = true;
-  };
+  $('#shared-use').onclick = () => { apply(); $('#shared-banner').hidden = true; };
   $('#shared-keep').onclick = () => { $('#shared-banner').hidden = true; };
 }
 

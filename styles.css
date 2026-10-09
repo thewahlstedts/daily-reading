@@ -86,6 +86,13 @@ button { font: inherit; color: inherit; }
 section > h2, .section-head { margin-bottom: 10px; }
 .section-head { display: flex; justify-content: space-between; align-items: baseline; }
 #behind { margin-bottom: 28px; }
+#week { margin-bottom: 28px; }
+.week-nav { display: flex; align-items: center; gap: 2px; }
+.week-nav .icon-btn { padding: 4px; }
+.week-meta { margin: 0 0 8px; color: var(--muted); font-size: 14px; }
+.week-meta strong { color: var(--ink); font-weight: 600; }
+.week-bar { margin-bottom: 10px; }
+.week-bar .fill { background: var(--done); }
 #behind h2, .eyebrow.late { color: var(--late); }
 .eyebrow.done { color: var(--done); }
 .empty { color: var(--muted); font-size: 15px; margin: 0; }
