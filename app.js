@@ -20,16 +20,45 @@ const defaults = {
   leading: 'normal',
 };
 
-let state = load();
-let plan = [];         // [{ ref, book, chapters: [n...] }]
-
 function load() {
   try {
-    return { ...defaults, ...JSON.parse(localStorage.getItem(STORE_KEY) || '{}') };
+    return sanitizeState(JSON.parse(localStorage.getItem(STORE_KEY) || '{}'));
   } catch {
     return { ...defaults };
   }
 }
+
+// Saved state can come from this device, an imported backup file, or the sync
+// server. Treat it all as untrusted: keep only known fields with sane values.
+const TRANSLATIONS = ['web', 'kjv', 'asv', 'bbe', 'ylt', 'darby'];
+
+function sanitizeState(raw) {
+  const s = { ...defaults };
+  if (!raw || typeof raw !== 'object') return s;
+  const str = (v, re) => typeof v === 'string' && re.test(v);
+  if (str(raw.start, /^\d{4}-\d{2}-\d{2}$/) && !isNaN(Date.parse(raw.start))) s.start = raw.start;
+  if (raw.read && typeof raw.read === 'object') {
+    s.read = {};
+    for (const [k, v] of Object.entries(raw.read)) {
+      if (/^\d{1,4}$/.test(k) && typeof v === 'string' && v.length <= 32) s.read[k] = v;
+    }
+  }
+  if (TRANSLATIONS.includes(raw.translation)) s.translation = raw.translation;
+  if (typeof raw.voice === 'string' && raw.voice.length <= 300) s.voice = raw.voice;
+  if (typeof raw.rate === 'number' && raw.rate >= 0.5 && raw.rate <= 2) s.rate = raw.rate;
+  if (typeof raw.automark === 'boolean') s.automark = raw.automark;
+  if (typeof raw.showCompleted === 'boolean') s.showCompleted = raw.showCompleted;
+  if (str(raw.theme, /^[a-z]{1,20}$/)) s.theme = raw.theme;
+  if (str(raw.font, /^[a-z-]{1,20}$/)) s.font = raw.font;
+  if (Number.isInteger(raw.textSize) && raw.textSize >= 0 && raw.textSize <= 4) s.textSize = raw.textSize;
+  if (str(raw.leading, /^[a-z]{1,20}$/)) s.leading = raw.leading;
+  return s;
+}
+
+const escapeHtml = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+let state = load();
+let plan = [];         // [{ ref, book, chapters: [n...] }]
 
 function save() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch {}
@@ -121,7 +150,7 @@ function render() {
     else if (t < 0) label = `<p class="eyebrow">Plan starts ${when}</p>`;
     else label = `<p class="eyebrow done">✓ Today's done · Up next ${when}</p>`;
     card.innerHTML = `${label}
-      <p class="ref">${plan[next].ref}</p>
+      <p class="ref">${escapeHtml(plan[next].ref)}</p>
       <div class="actions">
         <button class="btn primary" data-open="${next}">Read</button>
         <button class="btn primary" data-listen="${next}">Listen</button>
@@ -163,7 +192,7 @@ function itemHtml(i, t) {
   return `<li class="${cls.join(' ')}" data-index="${i}">
     <button class="tick" data-toggle="${i}" aria-label="${isRead(i) ? 'Mark unread' : 'Mark read'}">${checkSvg}</button>
     <span class="date">${fmtShort.format(dateForIndex(i))}</span>
-    <button class="open" data-open="${i}">${plan[i].ref}</button>
+    <button class="open" data-open="${i}">${escapeHtml(plan[i].ref)}</button>
   </li>`;
 }
 
@@ -244,7 +273,7 @@ function apiBook(book) {
 async function fetchChapter(book, chapter) {
   const key = `${state.translation}|${book}|${chapter}`;
   if (passageCache.has(key)) return passageCache.get(key);
-  const url = `${API}${encodeURIComponent(`${apiBook(book)} ${chapter}`)}?translation=${state.translation}`;
+  const url = `${API}${encodeURIComponent(`${apiBook(book)} ${chapter}`)}?translation=${encodeURIComponent(state.translation)}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Couldn't load ${book} ${chapter} (${res.status})`);
   const data = await res.json();
@@ -290,7 +319,9 @@ async function openReader(index, autoplay) {
       verses.forEach((v) => {
         const span = document.createElement('span');
         span.className = 'verse';
-        span.innerHTML = `<sup>${v.n}</sup>`;
+        const sup = document.createElement('sup');
+        sup.textContent = v.n;
+        span.append(sup);
         span.append(document.createTextNode(v.text + ' '));
         span.dataset.seg = current.segments.length;
         current.segments.push({ el: span, speak: v.text });
@@ -300,7 +331,10 @@ async function openReader(index, autoplay) {
     });
     if (autoplay) play();
   } catch (err) {
-    body.innerHTML = `<p class="status">${err.message}.<br>Check your connection and try again.</p>`;
+    const status = document.createElement('p');
+    status.className = 'status';
+    status.textContent = `${err.message}. Check your connection and try again.`;
+    body.replaceChildren(status);
   }
 }
 
@@ -452,7 +486,7 @@ function loadVoices() {
   const sel = $('#set-voice');
   const chosen = pickVoice();
   sel.innerHTML = voices.map((v) =>
-    `<option value="${v.voiceURI}" ${chosen && v.voiceURI === chosen.voiceURI ? 'selected' : ''}>${v.name} (${v.lang})</option>`
+    `<option value="${escapeHtml(v.voiceURI)}" ${chosen && v.voiceURI === chosen.voiceURI ? 'selected' : ''}>${escapeHtml(v.name)} (${escapeHtml(v.lang)})</option>`
   ).join('');
   $('#voice-hint').textContent = voices.length
     ? 'Voices come from your device. On iPhone, download "Enhanced" or "Premium" voices in Settings › Accessibility › Spoken Content › Voices for the most natural sound.'
@@ -590,6 +624,8 @@ applyReadingText();
 
 // ---------- Settings ----------
 
+$('#settings-form').addEventListener('submit', (e) => e.preventDefault());
+
 const settings = $('#settings');
 
 $('#settings-btn').addEventListener('click', () => {
@@ -639,7 +675,7 @@ $('#import-file').addEventListener('change', async (e) => {
   try {
     const data = JSON.parse(await file.text());
     if (typeof data.read !== 'object' || !data.start) throw new Error('bad file');
-    state = { ...defaults, ...data };
+    state = sanitizeState(data);
     save();
     applyTheme();
     applyReadingText();

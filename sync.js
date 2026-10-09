@@ -71,7 +71,10 @@ async function pull({ firstSignIn = false } = {}) {
     return push();
   }
 
-  const remote = row.data || {};
+  // Keep only valid synced fields from the server copy.
+  const clean = sanitizeState(row.data);
+  const remote = {};
+  SYNCED_FIELDS.forEach((k) => { if (row.data && k in row.data) remote[k] = clean[k]; });
   const remoteNewer = !meta.remoteAt || row.updated_at > meta.remoteAt;
 
   if (!firstSignIn && isDirty() && !remoteNewer) {

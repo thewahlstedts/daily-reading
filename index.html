@@ -3,15 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Security: only our own scripts run, and the page may only talk to the services it uses. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://bible-api.com https://rnpuwanpgundhfmvzrne.supabase.co wss://rnpuwanpgundhfmvzrne.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>Daily Reading</title>
   <meta name="theme-color" id="theme-color" content="#f7f3ec">
-  <script>
-    // Apply the saved theme before first paint to avoid a flash.
-    try {
-      const theme = JSON.parse(localStorage.getItem('daily-reading:v1') || '{}').theme;
-      if (theme && theme !== 'auto') document.documentElement.dataset.theme = theme;
-    } catch {}
-  </script>
+  <script src="theme-init.js"></script>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Daily Reading">
   <link rel="manifest" href="manifest.webmanifest">
@@ -22,7 +19,7 @@
   <!-- Reading fonts: optional, non-blocking; system fallbacks cover offline use. -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Literata:ital,wght@0,400;0,600;1,400&display=swap" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Literata:ital,wght@0,400;0,600;1,400&display=swap" id="reading-fonts" media="print">
 </head>
 <body>
   <header class="top">
@@ -116,7 +113,7 @@
       <div class="sheet-title"><h2>Settings</h2></div>
       <span class="spacer"></span>
     </div>
-    <form class="settings" id="settings-form" onsubmit="return false">
+    <form class="settings" id="settings-form">
       <div class="field sync" id="sync-section">
         <p class="label">Sync across devices</p>
         <div id="sync-signed-out">
