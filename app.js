@@ -14,6 +14,7 @@ const defaults = {
   rate: 1,
   automark: true,
   showCompleted: false,
+  theme: 'auto',
 };
 
 let state = load();
@@ -470,6 +471,44 @@ if ('speechSynthesis' in window) {
   speechSynthesis.addEventListener?.('voiceschanged', loadVoices);
 }
 
+// ---------- Themes ----------
+
+const THEMES = [
+  { id: 'auto', name: 'Auto', bg: 'linear-gradient(135deg, #f7f3ec 50%, #1b1916 50%)', ink: '#7a7166', accent: '#b07a45' },
+  { id: 'parchment', name: 'Parchment', bg: '#f7f3ec', ink: '#2a2622', accent: '#8a5a2b' },
+  { id: 'sage', name: 'Sage', bg: '#eff3ec', ink: '#232d26', accent: '#4a7356' },
+  { id: 'ocean', name: 'Ocean', bg: '#edf2f7', ink: '#1e2a35', accent: '#2f6690' },
+  { id: 'night', name: 'Night', bg: '#1b1916', ink: '#ece6dc', accent: '#d9a46c' },
+  { id: 'midnight', name: 'Midnight', bg: '#0f1620', ink: '#e3e9f0', accent: '#7fb3e0' },
+  { id: 'black', name: 'Black', bg: '#000000', ink: '#e8e6e3', accent: '#d9a46c' },
+];
+
+function applyTheme() {
+  const root = document.documentElement;
+  if (state.theme && state.theme !== 'auto') root.dataset.theme = state.theme;
+  else delete root.dataset.theme;
+  // Match the browser/status bar to the page background.
+  $('#theme-color').content = getComputedStyle(root).getPropertyValue('--bg').trim();
+  document.querySelectorAll('.swatch').forEach((b) => b.setAttribute('aria-checked', b.dataset.theme === (state.theme || 'auto')));
+}
+
+$('#theme-picker').innerHTML = THEMES.map((t) => `
+  <button type="button" class="swatch" role="radio" data-theme="${t.id}">
+    <span class="preview" style="background:${t.bg}"><i style="background:${t.ink}"></i><i style="background:${t.accent}"></i></span>
+    ${t.name}
+  </button>`).join('');
+
+$('#theme-picker').addEventListener('click', (e) => {
+  const b = e.target.closest('.swatch');
+  if (!b) return;
+  state.theme = b.dataset.theme;
+  save();
+  applyTheme();
+});
+
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+applyTheme();
+
 // ---------- Settings ----------
 
 const settings = $('#settings');
@@ -522,6 +561,7 @@ $('#import-file').addEventListener('change', async (e) => {
     if (typeof data.read !== 'object' || !data.start) throw new Error('bad file');
     state = { ...defaults, ...data };
     save();
+    applyTheme();
     render();
     settings.close();
   } catch {

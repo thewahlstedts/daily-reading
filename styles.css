@@ -1,35 +1,48 @@
+/* Themes. "Auto" (no data-theme) follows the system: Parchment by day, Night by dark. */
 :root {
-  --bg: #f7f3ec;
-  --surface: #fffdf9;
-  --ink: #2a2622;
-  --muted: #7a7166;
-  --line: #e6dfd3;
-  --accent: #8a5a2b;
-  --accent-soft: #f1e6d8;
-  --done: #4f7a52;
-  --late: #b4552d;
-  --highlight: #fbecc4;
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  color-scheme: light dark;
+}
+:root, :root[data-theme="parchment"] {
+  --bg: #f7f3ec; --surface: #fffdf9; --ink: #2a2622; --muted: #7a7166; --line: #e6dfd3;
+  --accent: #8a5a2b; --accent-soft: #f1e6d8; --done: #4f7a52; --late: #b4552d; --highlight: #fbecc4;
+  color-scheme: light;
+}
+:root[data-theme="sage"] {
+  --bg: #eff3ec; --surface: #fafcf8; --ink: #232d26; --muted: #66756a; --line: #dbe3d7;
+  --accent: #4a7356; --accent-soft: #e0eadf; --done: #3d7a55; --late: #b0583a; --highlight: #f2ebc0;
+  color-scheme: light;
+}
+:root[data-theme="ocean"] {
+  --bg: #edf2f7; --surface: #fafcfe; --ink: #1e2a35; --muted: #61748a; --line: #d6e0ea;
+  --accent: #2f6690; --accent-soft: #dbe7f2; --done: #3d7a55; --late: #b5502f; --highlight: #fbefc2;
+  color-scheme: light;
+}
+:root[data-theme="night"] {
+  --bg: #1b1916; --surface: #24211d; --ink: #ece6dc; --muted: #a09685; --line: #38332c;
+  --accent: #d9a46c; --accent-soft: #3a2e22; --done: #8fbf8f; --late: #e08a62; --highlight: #4a3c1f;
+  color-scheme: dark;
+}
+:root[data-theme="midnight"] {
+  --bg: #0f1620; --surface: #17202c; --ink: #e3e9f0; --muted: #8b9aad; --line: #263243;
+  --accent: #7fb3e0; --accent-soft: #1c2d40; --done: #86c49a; --late: #e89272; --highlight: #2c3a4f;
+  color-scheme: dark;
+}
+:root[data-theme="black"] {
+  --bg: #000000; --surface: #111111; --ink: #e8e6e3; --muted: #8a8782; --line: #262626;
+  --accent: #d9a46c; --accent-soft: #2a2016; --done: #8fbf8f; --late: #e08a62; --highlight: #3d3418;
+  color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #1b1916;
-    --surface: #24211d;
-    --ink: #ece6dc;
-    --muted: #a09685;
-    --line: #38332c;
-    --accent: #d9a46c;
-    --accent-soft: #3a2e22;
-    --done: #8fbf8f;
-    --late: #e08a62;
-    --highlight: #4a3c1f;
+  :root:not([data-theme]) {
+    --bg: #1b1916; --surface: #24211d; --ink: #ece6dc; --muted: #a09685; --line: #38332c;
+    --accent: #d9a46c; --accent-soft: #3a2e22; --done: #8fbf8f; --late: #e08a62; --highlight: #4a3c1f;
+    color-scheme: dark;
   }
 }
 
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; accent-color: var(--accent); }
 body {
   margin: 0;
   background: var(--bg);
@@ -126,3 +139,12 @@ dialog::backdrop { background: rgba(0,0,0,.3); }
 .row { display: flex; gap: 10px; flex-wrap: wrap; }
 .file-btn { flex-direction: row !important; font-weight: 600 !important; }
 .fine a { color: var(--accent); }
+
+.field { display: flex; flex-direction: column; gap: 8px; }
+.themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.swatch { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 6px; border-radius: 14px; border: 2px solid var(--line); background: var(--surface); cursor: pointer; font-size: 13px; font-weight: 600; }
+.swatch[aria-checked="true"] { border-color: var(--accent); }
+.swatch .preview { height: 44px; border-radius: 9px; display: flex; align-items: flex-end; gap: 4px; padding: 7px; border: 1px solid rgba(127,127,127,.25); }
+.swatch .preview i { display: block; height: 8px; border-radius: 4px; }
+.swatch .preview i:first-child { width: 40%; }
+.swatch .preview i:last-child { width: 14px; height: 14px; border-radius: 50%; margin-left: auto; }

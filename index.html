@@ -4,12 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Daily Reading</title>
-  <meta name="theme-color" content="#f7f3ec" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#1b1916" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" id="theme-color" content="#f7f3ec">
+  <script>
+    // Apply the saved theme before first paint to avoid a flash.
+    try {
+      const theme = JSON.parse(localStorage.getItem('daily-reading:v1') || '{}').theme;
+      if (theme && theme !== 'auto') document.documentElement.dataset.theme = theme;
+    } catch {}
+  </script>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Daily Reading">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="icon-180.png">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -98,6 +105,10 @@
       <span class="spacer"></span>
     </div>
     <form class="settings" id="settings-form" onsubmit="return false">
+      <div class="field">
+        <p class="label">Theme</p>
+        <div class="themes" id="theme-picker" role="radiogroup" aria-label="Theme"></div>
+      </div>
       <label>Plan start date
         <input type="date" id="set-start">
         <small>Day 1 of the plan falls on this date; each day after is the next reading.</small>

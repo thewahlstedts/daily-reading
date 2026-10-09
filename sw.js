@@ -1,8 +1,8 @@
 // App shell: network-first so updates show up, falling back to cache offline.
 // Scripture: cache-first, so any chapter you've opened works offline.
-const SHELL = 'daily-reading-shell-v1';
+const SHELL = 'daily-reading-shell-v2';
 const TEXT = 'daily-reading-text-v1';
-const SHELL_FILES = ['./', 'index.html', 'styles.css', 'app.js', 'plan.txt', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-512.png'];
+const SHELL_FILES = ['./', 'index.html', 'styles.css', 'app.js', 'plan.txt', 'manifest.webmanifest', 'icon.svg', 'favicon.svg', 'favicon-32.png', 'icon-180.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(SHELL).then((c) => c.addAll(SHELL_FILES)).then(() => self.skipWaiting()));
