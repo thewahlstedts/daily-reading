@@ -47,6 +47,7 @@
 
 * { box-sizing: border-box; }
 .scripture .copyright { font-family: var(--sans); font-size: 12px; line-height: 1.5; color: var(--muted); margin-top: 32px; }
+.scripture .copyright a, .fine a { color: var(--accent); }
 [hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; accent-color: var(--accent); }
 body {
@@ -207,3 +208,10 @@ dialog::backdrop { background: rgba(0,0,0,.3); }
 .switch:checked { background: var(--accent); }
 .switch:checked::after { transform: translateX(18px); }
 .switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Copyright & credits page */
+.credits { padding-top: 24px; padding-bottom: 48px; }
+.credits h1 { margin: 12px 0 20px; }
+.credits h2 { font-size: 17px; margin: 22px 0 6px; }
+.credits p { margin: 0 0 10px; color: var(--ink); font-size: 15px; }
+.credits a { color: var(--accent); }

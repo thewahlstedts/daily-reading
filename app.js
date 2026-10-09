@@ -43,6 +43,8 @@ const BIBLES = [
   { id: 'gnv', name: 'Geneva 1599', src: 'eng_gnv' },
   { id: 'darby', name: 'Darby', src: 'eng_dby' },
   { id: 'bbe', name: 'Basic English (BBE)', src: 'eng_bbe' },
+  // Bundled with the app (converted from the SWORD module by tools/sword_to_json.py).
+  { id: 'leb', name: 'Lexham English Bible (LEB)', local: 'bibles/leb' },
   // Licensed via API.Bible through our Supabase function; signed-in users only.
   { id: 'niv', name: 'New International Version (NIV)', licensed: true },
   { id: 'nlt', name: 'New Living Translation (NLT)', licensed: true },
@@ -404,6 +406,7 @@ async function fetchChapter(book, chapter) {
   const key = `${b.id}|${code}|${chapter}`;
   if (passageCache.has(key)) return passageCache.get(key);
   if (b.licensed) return fetchLicensedChapter(b, code, chapter, key);
+  if (b.local) return fetchLocalChapter(b, code, chapter, key);
 
   const res = await fetch(`${HELLOAO}${encodeURIComponent(b.src)}/${code}/${chapter}.json`);
   if (!res.ok) throw new Error(`Couldn't load ${book} ${chapter} (${res.status})`);
@@ -428,6 +431,28 @@ async function fetchChapter(book, chapter) {
   return result;
 }
 
+// Bundled Bibles: one JSON file per book, served (and cached offline) with the app.
+const bookCache = new Map();
+async function fetchLocalChapter(b, code, chapter, key) {
+  const path = `${b.local}/${code}.json`;
+  if (!bookCache.has(path)) {
+    bookCache.set(path, fetch(path).then((res) => {
+      if (!res.ok) throw new Error(`Couldn't load ${bookName(code)} (${res.status})`);
+      return res.json();
+    }));
+  }
+  let data;
+  try { data = await bookCache.get(path); } catch (err) { bookCache.delete(path); throw err; }
+  const rows = Array.isArray(data[chapter]) ? data[chapter] : [];
+  const result = {
+    verses: rows.filter((r) => Number.isInteger(r[0]) && typeof r[1] === 'string').map(([n, text]) => ({ n, text })),
+    audio: null,
+    notice: b.id,
+  };
+  passageCache.set(key, result);
+  return result;
+}
+
 // Licensed text is fetched through our Supabase function (which holds the
 // API.Bible key) and kept in memory only; it's never written to disk.
 const SCRIPTURE_FN = 'https://rnpuwanpgundhfmvzrne.supabase.co/functions/v1/scripture';
@@ -442,6 +467,7 @@ async function fetchLicensedChapter(b, code, chapter, key) {
   if (!res.ok) throw new Error(`Couldn't load ${bookName(code)} ${chapter} (${res.status})`);
   const data = await res.json();
   const result = {
+    notice: 'apibible',
     verses: (Array.isArray(data.verses) ? data.verses : [])
       .filter((v) => Number.isInteger(v.n) && typeof v.text === 'string')
       .map((v) => ({ n: v.n, text: v.text })),
@@ -451,6 +477,33 @@ async function fetchLicensedChapter(b, code, chapter, key) {
   };
   passageCache.set(key, result);
   return result;
+}
+
+// Required attribution under copyrighted text. Built with DOM nodes (API text is untrusted).
+function renderNotice(chapters) {
+  const kind = chapters[0]?.notice;
+  if (!kind) return null;
+  const p = document.createElement('p');
+  p.className = 'copyright';
+  const link = (text, href) => {
+    const a = document.createElement('a');
+    a.href = href;
+    a.textContent = text;
+    if (/^https?:/.test(href)) { a.target = '_blank'; a.rel = 'noopener'; }
+    return a;
+  };
+  if (kind === 'leb') {
+    p.append(
+      'Scripture quotations are from the ', link('Lexham English Bible', 'https://lexhampress.com/'),
+      '. Copyright 2012 ', link('Logos Bible Software', 'https://www.logos.com/'),
+      '. Lexham is a registered trademark of Logos Bible Software. ',
+    );
+  } else if (kind === 'apibible') {
+    [...new Set(chapters.map((ch) => ch.copyright).filter(Boolean))].forEach((text) => p.append(text, ' '));
+    p.append('Scripture provided by ', link('API.Bible', 'https://api.bible'), '. ');
+  }
+  p.append(link('Copyright & credits', 'copyright.html'));
+  return p;
 }
 
 const signInError = (message) => Object.assign(new Error(message), { signIn: true });
@@ -526,19 +579,14 @@ async function openReader(index, autoplay) {
         span.append(sup);
         span.append(document.createTextNode(v.text + ' '));
         span.dataset.seg = current.segments.length;
-        current.segments.push({ el: span, ci, n: v.n, speak: v.text });
+        current.segments.push({ el: span, ci, n: v.n, speak: v.text.replace(/[⌞⌟]/g, '') });
         p.append(span);
       });
       body.append(p);
     });
-    // Licensed translations: show the publisher's notice and report the view.
-    const notices = [...new Set(chapters.map((ch) => ch.copyright).filter(Boolean))];
-    notices.forEach((text) => {
-      const note = document.createElement('p');
-      note.className = 'copyright';
-      note.textContent = text;
-      body.append(note);
-    });
+    // Copyrighted translations: show the required notice and links; report licensed views.
+    const notice = renderNotice(chapters);
+    if (notice) body.append(notice);
     reportFums(chapters.map((ch) => ch.fumsToken));
     if (autoplay) play();
   } catch (err) {
