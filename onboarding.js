@@ -26,7 +26,20 @@ window.startOnboarding = () => {
   showStep();
 };
 
-function finishOnboarding(message) {
+// Joining mid-plan: count earlier weeks as done so they start fresh this week.
+function clearEarlierReadings() {
+  const upTo = Math.min(dueBefore(), plan.length);
+  const today = isoDate(new Date());
+  let count = 0;
+  for (let i = 0; i < upTo; i++) {
+    if (!isRead(i)) { state.read[i] = today; count++; }
+  }
+  return count;
+}
+
+function finishOnboarding(message, { fresh = true } = {}) {
+  const cleared = fresh ? clearEarlierReadings() : 0;
+  if (cleared) message = `${message} Earlier readings are marked done, so you start fresh this week.`;
   state.onboarded = true;
   save();
   try { localStorage.removeItem(OB_STEP_KEY); } catch {}
@@ -163,8 +176,8 @@ $('#ob-translations').addEventListener('click', (e) => {
 });
 
 function renderShare() {
-  const meets = state.meetDay != null ? `, meeting on ${WEEKDAYS[state.meetDay]}s` : '';
-  $('#ob-share-summary').textContent = `Send your group a link so everyone reads the same passages each day. It includes your start date (${fmtLong.format(dateForIndex(0))})${meets}. Your checkmarks and marked verses stay private.`;
+  $('#ob-share-start').textContent = fmtLong.format(dateForIndex(0));
+  $('#ob-share-meet').textContent = state.meetDay != null ? `${WEEKDAYS[state.meetDay]}s` : 'Not set (no group day)';
 }
 
 $('#ob-share').addEventListener('click', sharePlan);
@@ -205,7 +218,7 @@ window.onAuthChanged = () => {
 
 // Signed in to an account that was already set up elsewhere: its settings are synced in.
 window.onAccountRestored = () => {
-  if (onboarding.open) finishOnboarding('Welcome back! Your progress is synced.');
+  if (onboarding.open) finishOnboarding('Welcome back! Your progress is synced.', { fresh: false });
 };
 
 // ---------- Navigation ----------

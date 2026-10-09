@@ -207,9 +207,20 @@
 
       <section class="ob-step" data-step="share" hidden>
         <h2>Invite your group</h2>
-        <p id="ob-share-summary"></p>
-        <button class="btn primary" id="ob-share" type="button">Share plan</button>
-        <p class="ob-note">You can share again any time from Settings.</p>
+        <p>Send a link so everyone reads the same passage each day and arrives ready to talk about the week.</p>
+        <div class="ob-card ob-share-card">
+          <p class="ob-share-label">Your link includes</p>
+          <ul class="ob-facts">
+            <li><span class="ob-fact-icon" aria-hidden="true">📅</span><span><strong>Start date</strong><span id="ob-share-start"></span></span></li>
+            <li><span class="ob-fact-icon" aria-hidden="true">👥</span><span><strong>Meeting day</strong><span id="ob-share-meet"></span></span></li>
+          </ul>
+          <p class="ob-share-label">Stays private</p>
+          <ul class="ob-facts private">
+            <li><span class="ob-fact-icon" aria-hidden="true">🔒</span><span><strong>Your progress</strong><span>Checkmarks and marked verses are only yours</span></span></li>
+          </ul>
+        </div>
+        <button class="btn primary ob-share-btn" id="ob-share" type="button">Share plan</button>
+        <p class="ob-note ob-center">You can share again any time from Settings.</p>
       </section>
     </div>
     <div class="ob-nav">
