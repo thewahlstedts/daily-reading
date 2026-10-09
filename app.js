@@ -19,6 +19,7 @@ const defaults = {
   textSize: 2,         // index into SIZES
   leading: 'normal',
   meetDay: null,       // 0 = Sunday … 6 = Saturday; null = not in a group
+  marks: {},           // verses marked for the group: 'PSA.23.1' -> { i: plan index, at: ISO date }
 };
 
 function load() {
@@ -82,6 +83,14 @@ function sanitizeState(raw) {
   if (Number.isInteger(raw.textSize) && raw.textSize >= 0 && raw.textSize <= 4) s.textSize = raw.textSize;
   if (str(raw.leading, /^[a-z]{1,20}$/)) s.leading = raw.leading;
   if (Number.isInteger(raw.meetDay) && raw.meetDay >= 0 && raw.meetDay <= 6) s.meetDay = raw.meetDay;
+  if (raw.marks && typeof raw.marks === 'object') {
+    s.marks = {};
+    for (const [k, v] of Object.entries(raw.marks)) {
+      if (/^[1-3A-Z]{3}\.\d{1,3}\.\d{1,3}$/.test(k) && v && Number.isInteger(v.i) && v.i >= 0 && v.i < 1000 && typeof v.at === 'string' && v.at.length <= 32) {
+        s.marks[k] = { i: v.i, at: v.at };
+      }
+    }
+  }
   return s;
 }
 
@@ -194,8 +203,113 @@ function renderWeek(t) {
     : `${range} · Outside the plan`;
   $('#week-fill').style.width = idxs.length ? `${(done / idxs.length) * 100}%` : '0';
   $('#week-list').innerHTML = idxs.map((i) => itemHtml(i, t, dueBefore())).join('');
+  const marked = marksIn(w.startIdx, w.endIdx).length;
+  $('#review-btn').textContent = marked ? `Marked verses (${marked})` : 'No marked verses yet';
+  $('#review-btn').disabled = !marked;
   return weekWindow(0);
 }
+
+// ---------- Marked verses ----------
+
+// Marks whose reading falls in plan indexes [from, to], sorted in reading order.
+function marksIn(from = 0, to = Infinity) {
+  const order = (ref) => ref.split('.').slice(1).map(Number);
+  return Object.entries(state.marks)
+    .filter(([, m]) => m.i >= from && m.i <= to)
+    .sort(([ra, a], [rb, b]) => a.i - b.i || order(ra)[0] - order(rb)[0] || order(ra)[1] - order(rb)[1]);
+}
+
+const review = $('#review');
+let reviewRange = null; // { from, to, label } or null for all
+
+$('#review-btn').addEventListener('click', () => {
+  const w = weekWindow(weekOffset);
+  openReview({ from: w.startIdx, to: w.endIdx, label: `${$('#week-title').textContent} · ${fmtDay.format(dateForIndex(w.startIdx))} – ${fmtDay.format(w.meet)}` });
+});
+$('#review-all-btn').addEventListener('click', () => openReview(null));
+$('#review-close').addEventListener('click', () => review.close());
+
+function openReview(range) {
+  reviewRange = range;
+  if (!review.open) review.showModal();
+  renderReview();
+}
+
+async function renderReview() {
+  const body = $('#review-body');
+  const marks = reviewRange ? marksIn(reviewRange.from, reviewRange.to) : marksIn();
+  $('#review-sub').textContent = `${reviewRange ? reviewRange.label : 'All readings'} · ${bible().name}`;
+  if (!marks.length) {
+    body.innerHTML = '<p class="status">No marked verses here. Tap a verse while reading to mark it.</p>';
+    return;
+  }
+  body.innerHTML = '<p class="status">Loading…</p>';
+
+  // Group by reading, then load each needed chapter in the current translation.
+  const groups = new Map();
+  marks.forEach(([ref, m]) => {
+    if (!groups.has(m.i)) groups.set(m.i, []);
+    groups.get(m.i).push(ref);
+  });
+  const frag = document.createDocumentFragment();
+  for (const [i, refs] of groups) {
+    const item = plan[i];
+    if (!item) continue;
+    const section = document.createElement('section');
+    section.className = 'review-group';
+    const head = document.createElement('button');
+    head.className = 'review-head';
+    head.dataset.open = i;
+    head.textContent = item.ref;
+    const when = document.createElement('span');
+    when.textContent = fmtDay.format(dateForIndex(i));
+    head.append(when);
+    section.append(head);
+
+    for (const ref of refs) {
+      const [, ch, vn] = ref.split('.').map((x, k) => (k ? Number(x) : x));
+      const row = document.createElement('div');
+      row.className = 'review-verse';
+      const label = document.createElement('span');
+      label.className = 'review-ref';
+      label.textContent = `${item.book === 'Psalm' ? 'Ps' : ''} ${ch}:${vn}`.trim();
+      const text = document.createElement('p');
+      try {
+        const { verses } = await fetchChapter(item.book, ch);
+        text.textContent = verses.find((v) => v.n === vn)?.text ?? '(verse not found in this translation)';
+      } catch (err) {
+        text.textContent = err.signIn ? err.message : `Couldn't load the text (${err.message}).`;
+        text.className = 'muted';
+      }
+      const unmark = document.createElement('button');
+      unmark.className = 'icon-btn';
+      unmark.dataset.unmark = ref;
+      unmark.setAttribute('aria-label', `Unmark ${item.book} ${ch}:${vn}`);
+      unmark.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+      row.append(label, text, unmark);
+      section.append(row);
+    }
+    frag.append(section);
+  }
+  body.replaceChildren(frag);
+}
+
+$('#review-body').addEventListener('click', (e) => {
+  const un = e.target.closest('[data-unmark]');
+  if (un) {
+    delete state.marks[un.dataset.unmark];
+    save();
+    render();
+    renderReview();
+    return;
+  }
+  const open = e.target.closest('[data-open]');
+  if (open) {
+    e.stopPropagation(); // handled here so the reader opens above the review
+    review.close();
+    openReader(+open.dataset.open, false);
+  }
+});
 
 $('#week-prev').addEventListener('click', () => { weekOffset--; render(); });
 $('#week-next').addEventListener('click', () => { weekOffset++; render(); });
@@ -250,6 +364,9 @@ function render() {
 
   // Group week (its readings aren't repeated in the list below)
   const week = renderWeek(t);
+  const markCount = Object.keys(state.marks).length;
+  $('#marks-entry').hidden = Boolean(week) || !markCount;
+  $('#review-all-btn').textContent = `Marked verses (${markCount})`;
   const after = week ? week.endIdx + 1 : t;
 
   // Plan list: kept short so the current week stays the focus. In a group the
@@ -551,6 +668,7 @@ async function openReader(index, autoplay) {
   $('#reader-title').textContent = item.ref;
   $('#reader-sub').textContent = fmtLong.format(dateForIndex(index));
   updateMarkBtn();
+  updateReaderHint();
   updateRateBtn();
   const body = $('#reader-body');
   body.innerHTML = '<p class="status">Loading…</p>';
@@ -579,6 +697,8 @@ async function openReader(index, autoplay) {
         span.append(sup);
         span.append(document.createTextNode(v.text + ' '));
         span.dataset.seg = current.segments.length;
+        span.dataset.ref = `${BOOK_CODES[item.book]}.${item.chapters[ci]}.${v.n}`;
+        span.classList.toggle('marked', Boolean(state.marks[span.dataset.ref]));
         current.segments.push({ el: span, ci, n: v.n, speak: v.text.replace(/[⌞⌟]/g, '') });
         p.append(span);
       });
@@ -606,13 +726,22 @@ function closeReader() {
 $('#reader-close').addEventListener('click', closeReader);
 reader.addEventListener('cancel', (e) => { e.preventDefault(); closeReader(); });
 
+// Tapping a verse marks it to share with the group (tap again to unmark).
 $('#reader-body').addEventListener('click', (e) => {
   const v = e.target.closest('.verse');
-  if (!v) return;
-  pos = +v.dataset.seg;
-  if (playing) speakFrom(pos);
-  else highlight(pos);
+  if (!v || !current) return;
+  const ref = v.dataset.ref;
+  if (state.marks[ref]) delete state.marks[ref];
+  else state.marks[ref] = { i: current.index, at: isoDate(new Date()) };
+  v.classList.toggle('marked', Boolean(state.marks[ref]));
+  save();
+  render();
+  updateReaderHint();
 });
+
+function updateReaderHint() {
+  $('#reader-hint').hidden = Object.keys(state.marks).length > 0;
+}
 
 $('#play-btn').addEventListener('click', () => (playing ? pause() : play()));
 $('#prev-verse').addEventListener('click', () => skip(-1));
