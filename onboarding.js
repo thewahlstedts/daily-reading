@@ -99,6 +99,11 @@ function renderWelcome() {
 
 function renderGroup() {
   $('#ob-from-link').hidden = !obFromLink;
+  $('#ob-aligned').hidden = obFromLink || state.meetDay == null;
+  if (state.meetDay != null) {
+    const [y, m, d] = state.start.split('-').map(Number);
+    $('#ob-aligned').textContent = `Your plan will start ${fmtLong.format(new Date(y, m - 1, d))}, the day after a ${WEEKDAYS[state.meetDay]} meeting, so each week's readings line up with your group. You can adjust it next.`;
+  }
   const days = WEEKDAYS.map((d, i) => ({ value: i, label: d }));
   $('#ob-days').innerHTML = [...days, { value: '', label: 'Not in a group', wide: true }].map((d) => {
     const on = d.value === '' ? state.meetDay == null : state.meetDay === d.value;
@@ -106,10 +111,23 @@ function renderGroup() {
   }).join('');
 }
 
+// Align the plan with the group: day 1 falls on the day after a meeting, on or
+// just before the default start, so every group week begins a new set of 7.
+function alignedStart(meetDay) {
+  const [y, m, d] = defaults.start.split('-').map(Number);
+  const anchor = new Date(y, m - 1, d);
+  if (meetDay == null) return defaults.start;
+  const firstDay = (meetDay + 1) % 7;
+  const back = (anchor.getDay() - firstDay + 7) % 7;
+  return isoDate(new Date(y, m - 1, d - back));
+}
+
 $('#ob-days').addEventListener('click', (e) => {
   const b = e.target.closest('[data-day]');
   if (!b) return;
   state.meetDay = b.dataset.day === '' ? null : Number(b.dataset.day);
+  // A group's share link already set the real start date; otherwise align it.
+  if (!obFromLink) state.start = alignedStart(state.meetDay);
   weekOffset = 0;
   save();
   render();
