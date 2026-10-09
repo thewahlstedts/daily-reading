@@ -162,6 +162,47 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// Mark every overdue reading as read, with a short window to undo.
+let undoCatchUp = null;
+let toastTimer = null;
+
+$('#catchup-btn').addEventListener('click', () => {
+  const t = Math.min(todayIndex(), plan.length);
+  const marked = [];
+  for (let i = 0; i < t; i++) {
+    if (!isRead(i)) {
+      state.read[i] = isoDate(new Date());
+      marked.push(i);
+    }
+  }
+  if (!marked.length) return;
+  save();
+  render();
+  undoCatchUp = () => {
+    marked.forEach((i) => delete state.read[i]);
+    save();
+    render();
+  };
+  showToast(`Marked ${marked.length} reading${marked.length > 1 ? 's' : ''} as read`);
+});
+
+$('#toast-undo').addEventListener('click', () => {
+  undoCatchUp?.();
+  hideToast();
+});
+
+function showToast(text) {
+  $('#toast-text').textContent = text;
+  $('#toast').hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, 6000);
+}
+
+function hideToast() {
+  $('#toast').hidden = true;
+  undoCatchUp = null;
+}
+
 $('#jump-btn').addEventListener('click', () => {
   const t = Math.max(0, Math.min(todayIndex(), plan.length - 1));
   document.querySelector(`#plan-list [data-index="${t}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });

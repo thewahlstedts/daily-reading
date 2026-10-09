@@ -33,7 +33,10 @@
     <section class="card today" id="today-card"></section>
 
     <section id="behind" hidden>
-      <h2>Catch up</h2>
+      <div class="section-head">
+        <h2>Catch up</h2>
+        <button class="link-btn" id="catchup-btn">Mark all read</button>
+      </div>
       <ul class="list" id="behind-list"></ul>
     </section>
 
@@ -45,6 +48,11 @@
       <div id="plan-list"></div>
     </section>
   </main>
+
+  <div class="toast" id="toast" hidden>
+    <span id="toast-text"></span>
+    <button class="link-btn" id="toast-undo">Undo</button>
+  </div>
 
   <!-- Reader -->
   <dialog id="reader" class="sheet">
