@@ -20,7 +20,7 @@ window.startOnboarding = () => {
   let saved = 0;
   try { saved = Number(localStorage.getItem(OB_STEP_KEY)) || 0; } catch {}
   obStep = Math.min(Math.max(saved, 0), OB_STEPS.length - 1);
-  obFromLink = state.meetDay != null; // a shared link may have set the schedule already
+  try { obFromLink = localStorage.getItem('daily-reading:invite') === '1'; } catch {} // arrived via a group's share link
   borrowControls();
   onboarding.showModal();
   showStep();
@@ -42,7 +42,7 @@ function finishOnboarding(message, { fresh = true } = {}) {
   if (cleared) message = `${message} Earlier readings are marked done, so you start fresh this week.`;
   state.onboarded = true;
   save();
-  try { localStorage.removeItem(OB_STEP_KEY); } catch {}
+  try { localStorage.removeItem(OB_STEP_KEY); localStorage.removeItem('daily-reading:invite'); } catch {}
   returnControls();
   if (onboarding.open) onboarding.close();
   render();
@@ -91,10 +91,30 @@ function updateNext() {
 }
 
 function renderWelcome() {
+  renderInvite();
   const email = window.currentUserEmail?.();
   $('#ob-signin').hidden = Boolean(email) || !window.sendSignInLink;
   $('#ob-signedin').hidden = !email;
   $('#ob-who').textContent = email || '';
+}
+
+// Arrived from a group's share link: celebrate and show what they're joining.
+function renderInvite() {
+  $('#ob-invite').hidden = !obFromLink;
+  $('#ob-celebrate').hidden = !obFromLink;
+  $('#ob-logo').hidden = obFromLink;
+  if (!obFromLink) return;
+  $('#ob-title').textContent = "You're invited to read together!";
+  $('#ob-intro').textContent = 'Your group shared their reading plan with you. You\'ll read the same passage each day and come to your meetings ready to talk about the week.';
+  $('#ob-invite-start').textContent = fmtLong.format(dateForIndex(0));
+  $('#ob-invite-meet-row').hidden = state.meetDay == null;
+  if (state.meetDay != null) $('#ob-invite-meet').textContent = `${WEEKDAYS[state.meetDay]}s`;
+  const w = weekWindow(0);
+  const t = todayIndex();
+  const from = Math.max(0, w ? w.startIdx : t);
+  const to = Math.min(plan.length - 1, w ? w.endIdx : t);
+  $('#ob-invite-week-label').textContent = w ? 'This week' : 'Today';
+  $('#ob-invite-week').textContent = from > to ? 'The plan has finished' : from === to ? plan[from].ref : `${plan[from].ref} – ${plan[to].ref}`;
 }
 
 function renderGroup() {

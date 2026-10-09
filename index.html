@@ -152,9 +152,18 @@
     </div>
     <div class="ob-body" id="ob-body">
       <section class="ob-step" data-step="welcome">
-        <img class="ob-logo" src="favicon.svg" alt="" width="64" height="64">
+        <img class="ob-logo" src="favicon.svg" alt="" width="64" height="64" id="ob-logo">
+        <p class="ob-celebrate" id="ob-celebrate" aria-hidden="true" hidden>🎉</p>
         <h2 id="ob-title">Welcome to Daily Reading</h2>
-        <p>Read through the Bible a day at a time, keep pace with your group each week, and listen to any reading.</p>
+        <p id="ob-intro">Read through the Bible a day at a time, keep pace with your group each week, and listen to any reading.</p>
+        <div class="ob-card ob-invite" id="ob-invite" hidden>
+          <p class="ob-share-label">Your group's plan</p>
+          <ul class="ob-facts">
+            <li><span class="ob-fact-icon" aria-hidden="true">📅</span><span><strong>Started</strong><span id="ob-invite-start"></span></span></li>
+            <li id="ob-invite-meet-row"><span class="ob-fact-icon" aria-hidden="true">👥</span><span><strong>Meets</strong><span id="ob-invite-meet"></span></span></li>
+            <li><span class="ob-fact-icon" aria-hidden="true">📖</span><span><strong id="ob-invite-week-label">This week</strong><span id="ob-invite-week"></span></span></li>
+          </ul>
+        </div>
         <div class="ob-card" id="ob-signin">
           <p class="set-name">Sync across your devices</p>
           <small>Sign in with your email to keep your progress on your phone, tablet and computer. No password needed.</small>

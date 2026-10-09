@@ -300,3 +300,9 @@ dialog::backdrop { background: rgba(0,0,0,.3); }
 .ob-fact-icon { width: 36px; height: 36px; flex: none; border-radius: 10px; background: var(--accent-soft); display: grid; place-items: center; font-size: 18px; }
 .ob-share-btn { width: 100%; padding: 14px; font-size: 16px; }
 .ob-center { text-align: center; }
+
+.ob-celebrate { font-size: 52px; line-height: 1; margin: 12px 0 0; animation: ob-pop .6s cubic-bezier(.2, 1.6, .4, 1) both; }
+@keyframes ob-pop { from { transform: scale(.3) rotate(-15deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .ob-celebrate { animation: none; } }
+.ob-invite { border-color: var(--accent); background: var(--accent-soft); }
+.ob-invite .ob-fact-icon { background: var(--surface); }

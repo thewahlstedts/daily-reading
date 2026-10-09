@@ -1309,14 +1309,17 @@ function handleSharedLink() {
   const hasOwnSchedule = 'start' in saved || saved.meetDay != null;
 
   if (!hasOwnSchedule) {
-    // First visit: just adopt the sharer's schedule.
+    // First visit: adopt the sharer's schedule. Getting started celebrates the invite.
     apply();
-    undoCatchUp = null;
-    showToast(`Plan synced: ${describe(theirs)}`);
+    try { localStorage.setItem('daily-reading:invite', '1'); } catch {}
+    if (state.onboarded) {
+      undoCatchUp = null;
+      showToast(`You're reading with your group! Plan ${describe(theirs)}.`);
+    }
     return;
   }
 
-  $('#shared-text').textContent = `This link's plan ${describe(theirs)}. Yours ${describe(state)}. Switch so your readings line up?`;
+  $('#shared-text').textContent = `🎉 You've been invited to read along with a group! Their plan ${describe(theirs)}; yours ${describe(state)}. Switch so you're on the same reading each day?`;
   $('#shared-banner').hidden = false;
   $('#shared-use').onclick = () => { apply(); $('#shared-banner').hidden = true; };
   $('#shared-keep').onclick = () => { $('#shared-banner').hidden = true; };
