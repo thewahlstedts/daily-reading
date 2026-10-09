@@ -15,6 +15,9 @@ const defaults = {
   automark: true,
   showCompleted: false,
   theme: 'auto',
+  font: 'classic',
+  textSize: 2,         // index into SIZES
+  leading: 'normal',
 };
 
 let state = load();
@@ -511,6 +514,80 @@ $('#theme-picker').addEventListener('click', (e) => {
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 applyTheme();
 
+// ---------- Reading text ----------
+
+const FONTS = [
+  { id: 'classic', name: 'Classic', stack: 'var(--serif)' },
+  { id: 'book', name: 'Book', stack: 'Literata, var(--serif)' },
+  { id: 'modern', name: 'Modern', stack: 'var(--sans)' },
+  { id: 'easy', name: 'Easy read', stack: "'Atkinson Hyperlegible', var(--sans)" },
+];
+
+const SIZES = [
+  { px: 16, name: 'Extra small' },
+  { px: 18, name: 'Small' },
+  { px: 20, name: 'Medium' },
+  { px: 23, name: 'Large' },
+  { px: 26, name: 'Extra large' },
+];
+
+const LEADINGS = [
+  { id: 'compact', name: 'Compact', value: 1.45, gap: 2 },
+  { id: 'normal', name: 'Normal', value: 1.7, gap: 4 },
+  { id: 'relaxed', name: 'Relaxed', value: 2, gap: 6 },
+];
+
+const segBtn = (value, inner, label) =>
+  `<button type="button" class="seg" role="radio" data-value="${value}"${label ? ` aria-label="${label}"` : ''}>${inner}</button>`;
+
+$('#font-picker').innerHTML = FONTS.map((f) =>
+  segBtn(f.id, `<span class="aa" style="font-family:${f.stack}">Aa</span>${f.name}`)).join('');
+
+$('#size-picker').innerHTML = SIZES.map((s, i) =>
+  segBtn(i, `<span class="aa" style="font-size:${s.px - 6}px">A</span>`, s.name)).join('');
+
+$('#leading-picker').innerHTML = LEADINGS.map((l) =>
+  segBtn(l.id, `<span class="lines" style="gap:${l.gap}px"><i></i><i></i><i></i></span>${l.name}`)).join('');
+
+function readingText() {
+  return {
+    font: FONTS.find((f) => f.id === state.font) ?? FONTS[0],
+    size: SIZES[state.textSize] ?? SIZES[2],
+    leading: LEADINGS.find((l) => l.id === state.leading) ?? LEADINGS[1],
+  };
+}
+
+function setChecked(picker, value) {
+  document.querySelectorAll(`${picker} .seg`).forEach((b) => b.setAttribute('aria-checked', b.dataset.value === String(value)));
+}
+
+function applyReadingText() {
+  const { font, size, leading } = readingText();
+  const style = document.documentElement.style;
+  style.setProperty('--read-font', font.stack);
+  style.setProperty('--read-size', `${size.px}px`);
+  style.setProperty('--read-leading', leading.value);
+  setChecked('#font-picker', font.id);
+  setChecked('#size-picker', SIZES.indexOf(size));
+  setChecked('#leading-picker', leading.id);
+}
+
+function onPick(picker, update) {
+  $(picker).addEventListener('click', (e) => {
+    const b = e.target.closest('.seg');
+    if (!b) return;
+    update(b.dataset.value);
+    save();
+    applyReadingText();
+  });
+}
+
+onPick('#font-picker', (v) => { state.font = v; });
+onPick('#size-picker', (v) => { state.textSize = +v; });
+onPick('#leading-picker', (v) => { state.leading = v; });
+
+applyReadingText();
+
 // ---------- Settings ----------
 
 const settings = $('#settings');
@@ -521,6 +598,7 @@ $('#settings-btn').addEventListener('click', () => {
   $('#set-rate').value = state.rate;
   $('#rate-label').textContent = `${state.rate.toFixed(2)}×`;
   $('#set-automark').checked = state.automark;
+  applyReadingText();
   loadVoices();
   settings.showModal();
 });
@@ -564,6 +642,7 @@ $('#import-file').addEventListener('change', async (e) => {
     state = { ...defaults, ...data };
     save();
     applyTheme();
+    applyReadingText();
     render();
     settings.close();
   } catch {

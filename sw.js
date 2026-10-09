@@ -1,6 +1,6 @@
 // App shell: network-first so updates show up, falling back to cache offline.
 // Scripture: cache-first, so any chapter you've opened works offline.
-const SHELL = 'daily-reading-shell-v2';
+const SHELL = 'daily-reading-shell-v3';
 const TEXT = 'daily-reading-text-v1';
 const SHELL_FILES = ['./', 'index.html', 'styles.css', 'app.js', 'sync.js', 'vendor/supabase-2.117.1.js', 'plan.txt', 'manifest.webmanifest', 'icon.svg', 'favicon.svg', 'favicon-32.png', 'icon-180.png', 'icon-512.png'];
 
