@@ -8,7 +8,7 @@
 const SUPABASE_URL = 'https://rnpuwanpgundhfmvzrne.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_bBXg37-lo3GlX-uQorMfDA_0PKEsVwJ'; // publishable: safe in the browser, access is enforced by RLS
 const SYNC_KEY = 'daily-reading:sync';
-const SYNCED_FIELDS = ['start', 'read', 'translation', 'automark', 'meetDay', 'marks'];
+const SYNCED_FIELDS = ['start', 'read', 'translation', 'automark', 'meetDay', 'marks', 'onboarded'];
 
 window.SUPABASE_KEY = SUPABASE_KEY;
 
@@ -91,10 +91,14 @@ async function pull({ firstSignIn = false } = {}) {
     state.read = { ...(remote.read || {}), ...state.read };
     state.marks = { ...(remote.marks || {}), ...state.marks };
     ['start', 'translation', 'automark', 'meetDay'].forEach((k) => { if (k in remote) state[k] = remote[k]; });
+    const returning = Boolean(remote.onboarded);
+    state.onboarded = state.onboarded || returning;
     save();
     syncing = false;
     render();
     meta.remoteAt = row.updated_at;
+    // Signed in to an account that was already set up: no need to finish onboarding.
+    if (firstSignIn && returning) window.onAccountRestored?.();
     return push();
   }
 
@@ -155,31 +159,45 @@ function setMessage(text, isError = false) {
   el.classList.toggle('error', isError);
 }
 
-$('#sync-send').addEventListener('click', async () => {
-  const email = $('#sync-email-input').value.trim();
-  if (!/^\S+@\S+\.\S+$/.test(email)) return setMessage('Enter a valid email address.', true);
-  $('#sync-send').disabled = true;
+// Shared by Settings and onboarding. Each returns an error message, or null on success.
+window.sendSignInLink = async (email) => {
+  if (!sb) return 'Sync is unavailable right now.';
+  if (!/^\S+@\S+\.\S+$/.test(email)) return 'Enter a valid email address.';
   const { error } = await sb.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: location.origin + location.pathname },
   });
+  return error ? error.message : null;
+};
+
+// Home-screen apps on iPhone don't share storage with Safari, so tapping the
+// emailed link signs Safari in, not the app. Pasting the link here works anywhere.
+window.signInWithPastedLink = async (raw) => {
+  if (!sb) return 'Sync is unavailable right now.';
+  let url;
+  try { url = new URL(raw.trim()); } catch { return "That doesn't look like the sign-in link."; }
+  const tokenHash = url.searchParams.get('token') || url.searchParams.get('token_hash');
+  const type = url.searchParams.get('type') || 'magiclink';
+  if (!tokenHash) return 'That link is missing its sign-in code. Copy the whole link from the email.';
+  const { error } = await sb.auth.verifyOtp({ token_hash: tokenHash, type });
+  return error ? `${error.message}. Request a new link and try again.` : null;
+};
+
+window.currentUserEmail = () => user?.email ?? null;
+
+$('#sync-send').addEventListener('click', async () => {
+  const email = $('#sync-email-input').value.trim();
+  $('#sync-send').disabled = true;
+  const error = await window.sendSignInLink(email);
   $('#sync-send').disabled = false;
-  if (error) return setMessage(error.message, true);
+  if (error) return setMessage(error, true);
   setMessage(`Sign-in link sent to ${email}. Open it on this device.`);
   $('#sync-paste').hidden = false;
 });
 
-// Home-screen apps on iPhone don't share storage with Safari, so tapping the
-// emailed link signs Safari in, not the app. Pasting the link here works anywhere.
 $('#sync-paste-btn').addEventListener('click', async () => {
-  const raw = $('#sync-link-input').value.trim();
-  let url;
-  try { url = new URL(raw); } catch { return setMessage("That doesn't look like the sign-in link.", true); }
-  const tokenHash = url.searchParams.get('token') || url.searchParams.get('token_hash');
-  const type = url.searchParams.get('type') || 'magiclink';
-  if (!tokenHash) return setMessage("That link is missing its sign-in code. Copy the whole link from the email.", true);
-  const { error } = await sb.auth.verifyOtp({ token_hash: tokenHash, type });
-  if (error) return setMessage(`${error.message}. Request a new link and try again.`, true);
+  const error = await window.signInWithPastedLink($('#sync-link-input').value);
+  if (error) return setMessage(error, true);
   $('#sync-link-input').value = '';
   setMessage('');
 });
@@ -227,6 +245,7 @@ if (!sb) {
     const wasSignedOut = !user;
     user = session?.user ?? null;
     renderAccount();
+    window.onAuthChanged?.();
     if (!user && (event === 'INITIAL_SESSION' || event === 'SIGNED_OUT')) showExpired();
     if (user && wasSignedOut) {
       // Defer: calling Supabase inside this callback can deadlock the auth client.

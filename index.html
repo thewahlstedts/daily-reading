@@ -143,6 +143,80 @@
     </div>
   </dialog>
 
+  <!-- Getting started (first visit) -->
+  <dialog id="onboarding" class="sheet onboarding" aria-labelledby="ob-title">
+    <div class="ob-top">
+      <div class="ob-dots" id="ob-dots" aria-hidden="true"></div>
+      <button class="link-btn" id="ob-skip" type="button">Skip</button>
+    </div>
+    <div class="ob-body" id="ob-body">
+      <section class="ob-step" data-step="welcome">
+        <img class="ob-logo" src="favicon.svg" alt="" width="64" height="64">
+        <h2 id="ob-title">Welcome to Daily Reading</h2>
+        <p>Read through the Bible a day at a time, keep pace with your group each week, and listen to any reading.</p>
+        <div class="ob-card" id="ob-signin">
+          <p class="set-name">Sync across your devices</p>
+          <small>Sign in with your email to keep your progress on your phone, tablet and computer. No password needed.</small>
+          <div class="row nowrap">
+            <input type="email" id="ob-email" placeholder="you@example.com" autocomplete="email" inputmode="email">
+            <button class="btn primary" id="ob-send" type="button">Email me a link</button>
+          </div>
+          <div id="ob-paste" hidden>
+            <small>Using the home-screen app on iPhone? Long-press the link in the email, choose Copy, and paste it here:</small>
+            <div class="row nowrap">
+              <input type="url" id="ob-link" placeholder="Paste sign-in link">
+              <button class="btn ghost" id="ob-paste-btn" type="button">Sign in</button>
+            </div>
+          </div>
+          <small class="sync-message" id="ob-msg" hidden></small>
+        </div>
+        <div class="ob-card" id="ob-signedin" hidden>
+          <p class="set-name">✓ Signed in</p>
+          <small>As <strong id="ob-who"></strong>. Your progress will sync across your devices.</small>
+        </div>
+      </section>
+
+      <section class="ob-step" data-step="group" hidden>
+        <h2>When does your group meet?</h2>
+        <p>Your readings are grouped into weeks that end on your meeting day, so you're ready to review them together.</p>
+        <p class="ob-note" id="ob-from-link" hidden>Filled in from your group's link.</p>
+        <div class="ob-days" id="ob-days" role="radiogroup" aria-label="Meeting day"></div>
+      </section>
+
+      <section class="ob-step" data-step="start" hidden>
+        <h2>Confirm your start date</h2>
+        <p>Day 1 of the plan. Each day after that is the next reading.</p>
+        <input type="date" id="ob-start" class="ob-date">
+        <div class="ob-card" id="ob-preview"></div>
+      </section>
+
+      <section class="ob-step" data-step="translation" hidden>
+        <h2>Pick a translation</h2>
+        <p>You can switch any time in Settings.</p>
+        <div class="ob-options" id="ob-translations" role="radiogroup" aria-label="Translation"></div>
+      </section>
+
+      <section class="ob-step" data-step="look" hidden>
+        <h2>Make it yours</h2>
+        <p class="sublabel">Theme</p>
+        <div id="ob-slot-theme"></div>
+        <p class="sublabel">Text</p>
+        <div id="ob-slot-text"></div>
+      </section>
+
+      <section class="ob-step" data-step="share" hidden>
+        <h2>Invite your group</h2>
+        <p id="ob-share-summary"></p>
+        <button class="btn primary" id="ob-share" type="button">Share plan</button>
+        <p class="ob-note">You can share again any time from Settings.</p>
+      </section>
+    </div>
+    <div class="ob-nav">
+      <button class="btn ghost" id="ob-back" type="button">Back</button>
+      <button class="btn primary" id="ob-next" type="button">Continue</button>
+    </div>
+  </dialog>
+
   <!-- Marked verses for group review -->
   <dialog id="review" class="sheet">
     <div class="sheet-head">
@@ -208,6 +282,7 @@
           </div>
           <div class="set-row stacked">
             <span class="set-text"><span class="set-name">Text</span></span>
+            <div id="text-options" class="text-options">
             <div class="sample">
               <p><span><sup>1</sup>Yahweh is my shepherd: I shall lack nothing. </span><span><sup>2</sup>He makes me lie down in green pastures. He leads me beside still waters.</span></p>
               <small>Psalm 23:1&ndash;2</small>
@@ -218,6 +293,7 @@
             <div class="segmented" id="size-picker" role="radiogroup" aria-labelledby="size-label"></div>
             <p class="sublabel" id="leading-label">Line spacing</p>
             <div class="segmented" id="leading-picker" role="radiogroup" aria-labelledby="leading-label"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -296,5 +372,6 @@
   <script src="vendor/supabase-2.117.1.js"></script>
   <script src="app.js"></script>
   <script src="sync.js"></script>
+  <script src="onboarding.js"></script>
 </body>
 </html>

@@ -19,12 +19,16 @@ const defaults = {
   textSize: 2,         // index into SIZES
   leading: 'normal',
   meetDay: null,       // 0 = Sunday … 6 = Saturday; null = not in a group
+  onboarded: false,    // finished (or skipped) the getting-started walkthrough
   marks: {},           // verses marked for the group: 'PSA.23.1' -> { i: plan index, at: ISO date, t: translation id }
 };
 
 function load() {
   try {
-    return sanitizeState(JSON.parse(localStorage.getItem(STORE_KEY) || '{}'));
+    const raw = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+    // People who used the app before onboarding existed don't need it.
+    if (Object.keys(raw).length && !('onboarded' in raw)) raw.onboarded = true;
+    return sanitizeState(raw);
   } catch {
     return { ...defaults };
   }
@@ -78,6 +82,7 @@ function sanitizeState(raw) {
   if (typeof raw.rate === 'number' && raw.rate >= 0.5 && raw.rate <= 2) s.rate = raw.rate;
   if (typeof raw.automark === 'boolean') s.automark = raw.automark;
   if (typeof raw.showCompleted === 'boolean') s.showCompleted = raw.showCompleted;
+  if (typeof raw.onboarded === 'boolean') s.onboarded = raw.onboarded;
   if (str(raw.theme, /^[a-z]{1,20}$/)) s.theme = raw.theme;
   if (str(raw.font, /^[a-z-]{1,20}$/)) s.font = raw.font;
   if (Number.isInteger(raw.textSize) && raw.textSize >= 0 && raw.textSize <= 4) s.textSize = raw.textSize;
@@ -1326,7 +1331,8 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
-loadPlan().then(() => {
+// Resolves once the plan is loaded and rendered (later scripts wait on this).
+const planReady = loadPlan().then(() => {
   render();
   handleSharedLink();
 });

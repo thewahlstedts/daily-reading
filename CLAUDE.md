@@ -13,7 +13,8 @@ Plain static files, no build step, no package manager. Classic `<script>` tags s
 | `theme-init.js` | Runs in `<head>` before paint: applies saved theme, swaps reading fonts in non-blocking |
 | `vendor/supabase-2.117.1.js` | Pinned supabase-js UMD build (vendored so it works offline and can't change under us) |
 | `app.js` | Everything else: `state` + `save()`, plan parsing, rendering, reader, speech, settings, themes, reading text, sharing |
-| `sync.js` | Optional Supabase sync; hooks in via `window.onStateSaved` |
+| `sync.js` | Optional Supabase sync; hooks in via `window.onStateSaved`; exposes `sendSignInLink` / `signInWithPastedLink` |
+| `onboarding.js` | First-visit walkthrough (sign-in, meeting day, start date + week preview, translation, look, share). Borrows `#theme-picker` / `#text-options` from Settings while open. Starts via `planReady`; current step persists in `daily-reading:onboard-step` so the email-link round trip resumes it. |
 | `sw.js` | Service worker: app shell network-first (`cache: 'no-cache'`), bible.helloao.org responses cache-first |
 | `plan.txt` | The plan: one reading per line, `Book N` or `Book N-M` |
 
@@ -28,7 +29,8 @@ Plain static files, no build step, no package manager. Classic `<script>` tags s
 - **Narration:** for `narrated` Bibles (BSB), `thisChapterAudioLinks` gives human-read MP3s per narrator plus per-verse start times (`*.audioTimings.json`, `verses[n-1]`). `narrateFrom()` plays them in one `<audio>` element, highlighting on `timeupdate`; other translations use speech synthesis. Media Session gives lock-screen controls. (Note: Chrome won't load media in a hidden/background tab, so automated browser tests can't hear playback.)
 - **Speech:** Web Speech API, one utterance per verse. `gen` counter invalidates stale utterance callbacks.
 - **Marked verses:** tapping a verse in the reader toggles `state.marks['PSA.23.1'] = { i: planIndex, at, t: translationId }`. Only references are stored (never text, so licensed translations aren't cached); the review sheet (`renderReview()`) fetches each verse in the translation it was marked in and shows the required notices. The week section's "Marked verses" button reviews that week's marks; without a group, `#marks-entry` shows all.
-- **Sync:** `SYNCED_FIELDS` (start, read, translation, automark, meetDay, marks) are synced; marks merge like checkmarks; theme, voice, speed and reading text stay per device. If only the local copy changed, it wins. If both changed, checkmarks are merged (union) and account settings win.
+- **Onboarding:** `state.onboarded` (synced). Saved state from before onboarding existed counts as onboarded (`load()`). Signing in during onboarding to an already-set-up account calls `window.onAccountRestored`, which ends it.
+- **Sync:** `SYNCED_FIELDS` (start, read, translation, automark, meetDay, marks, onboarded) are synced; marks merge like checkmarks; theme, voice, speed and reading text stay per device. If only the local copy changed, it wins. If both changed, checkmarks are merged (union) and account settings win.
 
 ## Conventions
 
