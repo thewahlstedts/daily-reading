@@ -19,7 +19,7 @@ const defaults = {
   textSize: 2,         // index into SIZES
   leading: 'normal',
   meetDay: null,       // 0 = Sunday … 6 = Saturday; null = not in a group
-  marks: {},           // verses marked for the group: 'PSA.23.1' -> { i: plan index, at: ISO date }
+  marks: {},           // verses marked for the group: 'PSA.23.1' -> { i: plan index, at: ISO date, t: translation id }
 };
 
 function load() {
@@ -87,7 +87,7 @@ function sanitizeState(raw) {
     s.marks = {};
     for (const [k, v] of Object.entries(raw.marks)) {
       if (/^[1-3A-Z]{3}\.\d{1,3}\.\d{1,3}$/.test(k) && v && Number.isInteger(v.i) && v.i >= 0 && v.i < 1000 && typeof v.at === 'string' && v.at.length <= 32) {
-        s.marks[k] = { i: v.i, at: v.at };
+        s.marks[k] = { i: v.i, at: v.at, ...(TRANSLATIONS.includes(v.t) && { t: v.t }) };
       }
     }
   }
@@ -238,7 +238,7 @@ function openReview(range) {
 async function renderReview() {
   const body = $('#review-body');
   const marks = reviewRange ? marksIn(reviewRange.from, reviewRange.to) : marksIn();
-  $('#review-sub').textContent = `${reviewRange ? reviewRange.label : 'All readings'} · ${bible().name}`;
+  $('#review-sub').textContent = reviewRange ? reviewRange.label : 'All readings';
   if (!marks.length) {
     body.innerHTML = '<p class="status">No marked verses here. Tap a verse while reading to mark it.</p>';
     return;
@@ -252,6 +252,7 @@ async function renderReview() {
     groups.get(m.i).push(ref);
   });
   const frag = document.createDocumentFragment();
+  const usedChapters = new Map(); // translation id -> fetched chapters (for notices / FUMS)
   for (const [i, refs] of groups) {
     const item = plan[i];
     if (!item) continue;
@@ -272,10 +273,19 @@ async function renderReview() {
       row.className = 'review-verse';
       const label = document.createElement('span');
       label.className = 'review-ref';
-      label.textContent = `${item.book === 'Psalm' ? 'Ps' : ''} ${ch}:${vn}`.trim();
+      // Show each verse in the translation it was marked in.
+      const b = BIBLES.find((x) => x.id === state.marks[ref].t) || bible();
+      const abbr = b.name.match(/\(([^)]+)\)$/)?.[1] || b.name;
+      label.textContent = `${item.book === 'Psalm' ? 'Ps ' : ''}${ch}:${vn}`;
+      const tag = document.createElement('small');
+      tag.textContent = abbr;
+      label.append(tag);
       const text = document.createElement('p');
       try {
-        const { verses } = await fetchChapter(item.book, ch);
+        const chapter = await fetchChapter(item.book, ch, b);
+        const { verses } = chapter;
+        if (!usedChapters.has(b.id)) usedChapters.set(b.id, []);
+        usedChapters.get(b.id).push(chapter);
         text.textContent = verses.find((v) => v.n === vn)?.text ?? '(verse not found in this translation)';
       } catch (err) {
         text.textContent = err.signIn ? err.message : `Couldn't load the text (${err.message}).`;
@@ -290,6 +300,12 @@ async function renderReview() {
       section.append(row);
     }
     frag.append(section);
+  }
+  // Required attribution for copyrighted text shown here, and licensed-view reporting.
+  for (const chapters of usedChapters.values()) {
+    const notice = renderNotice(chapters);
+    if (notice) frag.append(notice);
+    reportFums(chapters.map((ch) => ch.fumsToken));
   }
   body.replaceChildren(frag);
 }
@@ -511,13 +527,13 @@ function verseText(content) {
   return content
     .map((part) => (typeof part === 'string' ? part : part.text || ''))
     .join(' ')
+    .replace(/¶/g, '') // paragraph marks in some sources (e.g. KJV)
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 // Returns { verses: [{ n, text }], audio: { narrator: { url, timings } } | null, copyright?, fumsToken? }
-async function fetchChapter(book, chapter) {
-  const b = bible();
+async function fetchChapter(book, chapter, b = bible()) {
   const code = BOOK_CODES[book];
   if (!code) throw new Error(`Unknown book "${book}"`);
   const key = `${b.id}|${code}|${chapter}`;
@@ -732,7 +748,7 @@ $('#reader-body').addEventListener('click', (e) => {
   if (!v || !current) return;
   const ref = v.dataset.ref;
   if (state.marks[ref]) delete state.marks[ref];
-  else state.marks[ref] = { i: current.index, at: isoDate(new Date()) };
+  else state.marks[ref] = { i: current.index, at: isoDate(new Date()), t: bible().id };
   v.classList.toggle('marked', Boolean(state.marks[ref]));
   save();
   render();
