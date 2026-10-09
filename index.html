@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <!-- Security: only our own scripts run, and the page may only talk to the services it uses. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src https://audio.bible.helloao.org; connect-src 'self' https://bible.helloao.org https://rnpuwanpgundhfmvzrne.supabase.co wss://rnpuwanpgundhfmvzrne.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src https://audio.bible.helloao.org; connect-src 'self' https://bible.helloao.org https://fums.api.bible https://rnpuwanpgundhfmvzrne.supabase.co wss://rnpuwanpgundhfmvzrne.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>Daily Reading</title>
   <meta name="theme-color" id="theme-color" content="#f7f3ec">
@@ -164,7 +164,7 @@
         <h3 id="sg-reading">Reading</h3>
         <div class="set-card">
           <label class="set-row">
-            <span class="set-text"><span class="set-name">Translation</span></span>
+            <span class="set-text"><span class="set-name">Translation</span><small id="translation-hint"></small></span>
             <select id="set-translation"></select>
           </label>
           <div class="set-row stacked">

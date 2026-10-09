@@ -10,6 +10,8 @@ const SUPABASE_KEY = 'sb_publishable_bBXg37-lo3GlX-uQorMfDA_0PKEsVwJ'; // publis
 const SYNC_KEY = 'daily-reading:sync';
 const SYNCED_FIELDS = ['start', 'read', 'translation', 'automark', 'meetDay'];
 
+window.SUPABASE_KEY = SUPABASE_KEY;
+
 const sb = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' },
 });
@@ -106,6 +108,13 @@ async function pull({ firstSignIn = false } = {}) {
   }
   setStatus();
 }
+
+// Access token for calling our Supabase functions (licensed Bible text).
+window.getAccessToken = async () => {
+  if (!sb) return null;
+  const { data } = await sb.auth.getSession();
+  return data.session?.access_token ?? null;
+};
 
 // ---------- UI ----------
 

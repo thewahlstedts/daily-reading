@@ -46,6 +46,7 @@
 }
 
 * { box-sizing: border-box; }
+.scripture .copyright { font-family: var(--sans); font-size: 12px; line-height: 1.5; color: var(--muted); margin-top: 32px; }
 [hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; accent-color: var(--accent); }
 body {

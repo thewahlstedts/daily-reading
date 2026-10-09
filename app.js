@@ -43,6 +43,10 @@ const BIBLES = [
   { id: 'gnv', name: 'Geneva 1599', src: 'eng_gnv' },
   { id: 'darby', name: 'Darby', src: 'eng_dby' },
   { id: 'bbe', name: 'Basic English (BBE)', src: 'eng_bbe' },
+  // Licensed via API.Bible through our Supabase function; signed-in users only.
+  { id: 'niv', name: 'New International Version (NIV)', licensed: true },
+  { id: 'nlt', name: 'New Living Translation (NLT)', licensed: true },
+  { id: 'amp', name: 'Amplified Bible (AMP)', licensed: true },
 ];
 const TRANSLATIONS = BIBLES.map((b) => b.id);
 
@@ -376,7 +380,7 @@ const BOOK_CODES = {
   '3 John': '3JN', Jude: 'JUD', Revelation: 'REV',
 };
 
-const bible = () => BIBLES.find((b) => b.id === state.translation) || BIBLES[0];
+const bible = () => BIBLES.find((b) => b.id === state.translation) || BIBLES.find((b) => b.id === 'bsb');
 const passageCache = new Map();
 
 function apiBook(book) {
@@ -392,13 +396,14 @@ function verseText(content) {
     .trim();
 }
 
-// Returns { verses: [{ n, text }], audio: { narrator: { url, timings } } | null }
+// Returns { verses: [{ n, text }], audio: { narrator: { url, timings } } | null, copyright?, fumsToken? }
 async function fetchChapter(book, chapter) {
   const b = bible();
   const code = BOOK_CODES[book];
   if (!code) throw new Error(`Unknown book "${book}"`);
   const key = `${b.id}|${code}|${chapter}`;
   if (passageCache.has(key)) return passageCache.get(key);
+  if (b.licensed) return fetchLicensedChapter(b, code, chapter, key);
 
   const res = await fetch(`${HELLOAO}${encodeURIComponent(b.src)}/${code}/${chapter}.json`);
   if (!res.ok) throw new Error(`Couldn't load ${book} ${chapter} (${res.status})`);
@@ -421,6 +426,50 @@ async function fetchChapter(book, chapter) {
   const result = { verses, audio };
   passageCache.set(key, result);
   return result;
+}
+
+// Licensed text is fetched through our Supabase function (which holds the
+// API.Bible key) and kept in memory only; it's never written to disk.
+const SCRIPTURE_FN = 'https://rnpuwanpgundhfmvzrne.supabase.co/functions/v1/scripture';
+
+async function fetchLicensedChapter(b, code, chapter, key) {
+  const token = await window.getAccessToken?.();
+  if (!token) throw signInError(`Sign in under Settings → Sync across devices to read the ${b.name.match(/\((\w+)\)/)?.[1] || b.name}.`);
+  const res = await fetch(`${SCRIPTURE_FN}?bible=${encodeURIComponent(b.id)}&chapter=${code}.${chapter}`, {
+    headers: { Authorization: `Bearer ${token}`, apikey: window.SUPABASE_KEY || '' },
+  });
+  if (res.status === 401) throw signInError('Your sign-in has expired. Sign in again under Settings → Sync across devices.');
+  if (!res.ok) throw new Error(`Couldn't load ${bookName(code)} ${chapter} (${res.status})`);
+  const data = await res.json();
+  const result = {
+    verses: (Array.isArray(data.verses) ? data.verses : [])
+      .filter((v) => Number.isInteger(v.n) && typeof v.text === 'string')
+      .map((v) => ({ n: v.n, text: v.text })),
+    audio: null,
+    copyright: typeof data.copyright === 'string' ? data.copyright : '',
+    fumsToken: typeof data.fumsToken === 'string' ? data.fumsToken : '',
+  };
+  passageCache.set(key, result);
+  return result;
+}
+
+const signInError = (message) => Object.assign(new Error(message), { signIn: true });
+const bookName = (code) => Object.keys(BOOK_CODES).find((k) => BOOK_CODES[k] === code) || code;
+
+// API.Bible's Fair Use Management System: report each licensed chapter view.
+// Uses their plain GET endpoint with anonymous random device/session ids.
+const FUMS_SESSION = crypto.randomUUID();
+function reportFums(tokens) {
+  tokens = tokens.filter(Boolean);
+  if (!tokens.length) return;
+  let device = '';
+  try {
+    device = localStorage.getItem('daily-reading:device') || crypto.randomUUID();
+    localStorage.setItem('daily-reading:device', device);
+  } catch { device = FUMS_SESSION; }
+  const q = new URLSearchParams({ dId: device, sId: FUMS_SESSION });
+  tokens.forEach((t) => q.append('t', t));
+  fetch(`https://fums.api.bible/f3?${q}`, { mode: 'no-cors', keepalive: true }).catch(() => {});
 }
 
 async function fetchTimings(url) {
@@ -482,11 +531,20 @@ async function openReader(index, autoplay) {
       });
       body.append(p);
     });
+    // Licensed translations: show the publisher's notice and report the view.
+    const notices = [...new Set(chapters.map((ch) => ch.copyright).filter(Boolean))];
+    notices.forEach((text) => {
+      const note = document.createElement('p');
+      note.className = 'copyright';
+      note.textContent = text;
+      body.append(note);
+    });
+    reportFums(chapters.map((ch) => ch.fumsToken));
     if (autoplay) play();
   } catch (err) {
     const status = document.createElement('p');
     status.className = 'status';
-    status.textContent = `${err.message}. Check your connection and try again.`;
+    status.textContent = err.signIn ? err.message : `${err.message}. Check your connection and try again.`;
     body.replaceChildren(status);
   }
 }
@@ -908,12 +966,17 @@ $('#set-meet').addEventListener('change', (e) => {
   render();
   renderShareSummary();
 });
-$('#set-translation').innerHTML = BIBLES.map((b) => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
+$('#set-translation').innerHTML = [...BIBLES]
+  .sort((a, b) => a.name.localeCompare(b.name))
+  .map((b) => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
 $('#set-narrator').innerHTML = NARRATORS.map((n) => `<option value="${n.id}">${n.id === 'device' ? n.name : `${n.name} (human)`}</option>`).join('');
 
 // Human narration exists only for narrated Bibles; otherwise the device voice reads.
 function renderListening() {
   const narrated = bible().narrated;
+  $('#translation-hint').textContent = bible().licensed
+    ? 'Licensed translation: sign in under Sync across devices to read it.'
+    : '';
   $('#set-narrator').value = state.narrator;
   $('#set-narrator').disabled = !narrated;
   $('#narrator-hint').textContent = narrated
