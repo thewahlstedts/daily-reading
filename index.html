@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Daily Reading</title>
+  <meta name="theme-color" content="#f7f3ec" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1b1916" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Daily Reading">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <p class="eyebrow" id="today-date"></p>
+      <h1>Daily Reading</h1>
+    </div>
+    <button class="icon-btn" id="settings-btn" aria-label="Settings">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </header>
+
+  <main>
+    <section class="progress" aria-label="Progress">
+      <div class="bar"><div class="fill" id="progress-fill"></div></div>
+      <p id="progress-text"></p>
+    </section>
+
+    <section class="card today" id="today-card"></section>
+
+    <section id="behind" hidden>
+      <h2>Catch up</h2>
+      <ul class="list" id="behind-list"></ul>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Full plan</h2>
+        <button class="link-btn" id="jump-btn">Jump to today</button>
+      </div>
+      <div id="plan-list"></div>
+    </section>
+  </main>
+
+  <!-- Reader -->
+  <dialog id="reader" class="sheet">
+    <div class="sheet-head">
+      <button class="icon-btn" id="reader-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="sheet-title">
+        <h2 id="reader-title"></h2>
+        <p class="eyebrow" id="reader-sub"></p>
+      </div>
+      <span class="spacer"></span>
+    </div>
+    <article id="reader-body" class="scripture"></article>
+    <div class="player">
+      <button class="btn ghost" id="mark-btn"></button>
+      <div class="player-controls">
+        <button class="icon-btn" id="prev-verse" aria-label="Previous verse">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 6h2v12H6zM9.5 12l8.5 6V6z"/></svg>
+        </button>
+        <button class="play-btn" id="play-btn" aria-label="Listen">
+          <svg class="i-play" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          <svg class="i-pause" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+        </button>
+        <button class="icon-btn" id="next-verse" aria-label="Next verse">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>
+        </button>
+      </div>
+      <button class="btn ghost" id="rate-btn" aria-label="Reading speed"></button>
+    </div>
+  </dialog>
+
+  <!-- Settings -->
+  <dialog id="settings" class="sheet">
+    <div class="sheet-head">
+      <button class="icon-btn" id="settings-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="sheet-title"><h2>Settings</h2></div>
+      <span class="spacer"></span>
+    </div>
+    <form class="settings" id="settings-form" onsubmit="return false">
+      <label>Plan start date
+        <input type="date" id="set-start">
+        <small>Day 1 of the plan falls on this date; each day after is the next reading.</small>
+      </label>
+      <label>Translation
+        <select id="set-translation">
+          <option value="web">World English Bible (WEB)</option>
+          <option value="kjv">King James Version (KJV)</option>
+          <option value="asv">American Standard Version (ASV)</option>
+          <option value="bbe">Bible in Basic English (BBE)</option>
+          <option value="ylt">Young's Literal Translation (YLT)</option>
+          <option value="darby">Darby Translation</option>
+        </select>
+      </label>
+      <label>Voice
+        <select id="set-voice"></select>
+        <small id="voice-hint"></small>
+      </label>
+      <label>Reading speed
+        <input type="range" id="set-rate" min="0.6" max="1.6" step="0.05">
+        <small id="rate-label"></small>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="set-automark"> Mark as read when listening finishes
+      </label>
+      <div class="row">
+        <button class="btn ghost" id="test-voice" type="button">Test voice</button>
+      </div>
+      <hr>
+      <p class="label">Backup</p>
+      <small>Progress is saved on this device. Export it to move to another device.</small>
+      <div class="row">
+        <button class="btn ghost" id="export-btn" type="button">Export progress</button>
+        <label class="btn ghost file-btn">Import<input type="file" id="import-file" accept="application/json" hidden></label>
+      </div>
+      <p class="fine">Scripture text from <a href="https://bible-api.com" target="_blank" rel="noopener">bible-api.com</a> (public-domain translations).</p>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>

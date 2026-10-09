@@ -1,0 +1,484 @@
+'use strict';
+
+const STORE_KEY = 'daily-reading:v1';
+const API = 'https://bible-api.com/';
+const $ = (sel) => document.querySelector(sel);
+
+// ---------- State ----------
+
+const defaults = {
+  start: '2026-09-01',  // default plan start; change in Settings
+  read: {},            // plan index -> ISO date it was marked read
+  translation: 'web',
+  voice: '',
+  rate: 1,
+  automark: true,
+};
+
+let state = load();
+let plan = [];         // [{ ref, book, chapters: [n...] }]
+
+function load() {
+  try {
+    return { ...defaults, ...JSON.parse(localStorage.getItem(STORE_KEY) || '{}') };
+  } catch {
+    return { ...defaults };
+  }
+}
+
+function save() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch {}
+}
+
+// ---------- Dates (day granularity, DST-safe) ----------
+
+function isoDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function dayNumber(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return Date.UTC(y, m - 1, d) / 86400000;
+}
+
+function dateForIndex(i) {
+  const [y, m, d] = state.start.split('-').map(Number);
+  return new Date(y, m - 1, d + i);
+}
+
+function todayIndex() {
+  return dayNumber(isoDate(new Date())) - dayNumber(state.start);
+}
+
+const fmtShort = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
+const fmtLong = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+const fmtMonth = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
+
+// ---------- Plan ----------
+
+function parseRef(line) {
+  const m = line.match(/^(.*\D)\s+(\d+)(?:-(\d+))?$/);
+  if (!m) return { ref: line, book: line, chapters: [] };
+  const [, book, a, b] = m;
+  const chapters = [];
+  for (let c = +a; c <= +(b || a); c++) chapters.push(c);
+  return { ref: line, book, chapters };
+}
+
+async function loadPlan() {
+  const res = await fetch('plan.txt');
+  const text = await res.text();
+  plan = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map(parseRef);
+}
+
+const isRead = (i) => Boolean(state.read[i]);
+
+function setRead(i, value) {
+  if (value) state.read[i] = isoDate(new Date());
+  else delete state.read[i];
+  save();
+  render();
+}
+
+// ---------- Rendering ----------
+
+const checkSvg = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>';
+
+function render() {
+  const t = todayIndex();
+  const total = plan.length;
+  const doneCount = Object.keys(state.read).length;
+  const behind = [];
+  for (let i = 0; i < Math.min(t, total); i++) if (!isRead(i)) behind.push(i);
+
+  $('#today-date').textContent = fmtLong.format(new Date());
+
+  // Progress
+  $('#progress-fill').style.width = `${(doneCount / total) * 100}%`;
+  let progress = `${doneCount} of ${total} read`;
+  if (t >= 0 && t < total) progress = `Day ${t + 1} of ${total} · ` + progress;
+  if (behind.length) progress += ` · ${behind.length} behind`;
+  $('#progress-text').textContent = progress;
+
+  // Today card
+  const card = $('#today-card');
+  if (t < 0) {
+    card.innerHTML = `<p class="eyebrow">Starts ${fmtLong.format(dateForIndex(0))}</p>
+      <p class="ref">${plan[0].ref}</p>
+      <div class="actions"><button class="btn primary" data-open="0">Read ahead</button></div>`;
+  } else if (t >= total) {
+    card.innerHTML = `<p class="eyebrow">Plan finished</p>
+      <p class="ref">${behind.length ? 'Almost there' : 'Well done'}</p>
+      <p class="note">${behind.length ? `${behind.length} reading${behind.length > 1 ? 's' : ''} left to catch up on below.` : 'You completed every reading in the plan.'}</p>`;
+  } else {
+    const done = isRead(t);
+    card.innerHTML = `<p class="eyebrow">Today's reading</p>
+      <p class="ref">${plan[t].ref}</p>
+      <div class="actions">
+        <button class="btn primary" data-open="${t}">Read</button>
+        <button class="btn primary" data-listen="${t}">Listen</button>
+        <button class="btn ${done ? 'done' : 'ghost'}" data-toggle="${t}">${done ? '✓ Read' : 'Mark read'}</button>
+      </div>`;
+  }
+
+  // Catch up
+  $('#behind').hidden = behind.length === 0;
+  $('#behind-list').innerHTML = behind.map((i) => itemHtml(i, t)).join('');
+
+  // Full plan grouped by month
+  const groups = new Map();
+  plan.forEach((_, i) => {
+    const key = fmtMonth.format(dateForIndex(i));
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(i);
+  });
+  $('#plan-list').innerHTML = [...groups].map(([month, idxs]) =>
+    `<div class="month"><h3>${month}</h3><ul class="list">${idxs.map((i) => itemHtml(i, t)).join('')}</ul></div>`
+  ).join('');
+}
+
+function itemHtml(i, t) {
+  const cls = ['item'];
+  if (isRead(i)) cls.push('read');
+  if (i === t) cls.push('is-today');
+  if (i < t && !isRead(i)) cls.push('late');
+  return `<li class="${cls.join(' ')}" data-index="${i}">
+    <button class="tick" data-toggle="${i}" aria-label="${isRead(i) ? 'Mark unread' : 'Mark read'}">${checkSvg}</button>
+    <span class="date">${fmtShort.format(dateForIndex(i))}</span>
+    <button class="open" data-open="${i}">${plan[i].ref}</button>
+  </li>`;
+}
+
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-open],[data-listen],[data-toggle]');
+  if (!el) return;
+  if (el.dataset.toggle != null) {
+    const i = +el.dataset.toggle;
+    setRead(i, !isRead(i));
+  } else if (el.dataset.open != null) {
+    openReader(+el.dataset.open, false);
+  } else if (el.dataset.listen != null) {
+    openReader(+el.dataset.listen, true);
+  }
+});
+
+$('#jump-btn').addEventListener('click', () => {
+  const t = Math.max(0, Math.min(todayIndex(), plan.length - 1));
+  document.querySelector(`#plan-list [data-index="${t}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+
+// ---------- Scripture ----------
+
+const passageCache = new Map();
+
+function apiBook(book) {
+  return book === 'Psalm' ? 'Psalms' : book;
+}
+
+async function fetchChapter(book, chapter) {
+  const key = `${state.translation}|${book}|${chapter}`;
+  if (passageCache.has(key)) return passageCache.get(key);
+  const url = `${API}${encodeURIComponent(`${apiBook(book)} ${chapter}`)}?translation=${state.translation}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Couldn't load ${book} ${chapter} (${res.status})`);
+  const data = await res.json();
+  const verses = data.verses.map((v) => ({ n: v.verse, text: v.text.replace(/\s+/g, ' ').trim() }));
+  passageCache.set(key, verses);
+  return verses;
+}
+
+// ---------- Reader + speech ----------
+
+let current = null;      // { index, segments: [{ el, speak }] }
+let pos = 0;             // segment being spoken
+let playing = false;
+let gen = 0;             // bumps whenever playback is interrupted, to ignore stale utterance events
+let wakeLock = null;
+
+const reader = $('#reader');
+
+async function openReader(index, autoplay) {
+  stopSpeech();
+  const item = plan[index];
+  current = { index, segments: [] };
+  pos = 0;
+  $('#reader-title').textContent = item.ref;
+  $('#reader-sub').textContent = fmtLong.format(dateForIndex(index));
+  updateMarkBtn();
+  updateRateBtn();
+  const body = $('#reader-body');
+  body.innerHTML = '<p class="status">Loading…</p>';
+  body.scrollTop = 0;
+  if (!reader.open) reader.showModal();
+
+  try {
+    const chapters = await Promise.all(item.chapters.map((c) => fetchChapter(item.book, c)));
+    if (current?.index !== index) return;
+    body.innerHTML = '';
+    chapters.forEach((verses, ci) => {
+      const heading = document.createElement('h3');
+      heading.textContent = `${item.book} ${item.chapters[ci]}`;
+      body.append(heading);
+      current.segments.push({ el: heading, speak: `${apiBook(item.book) === 'Psalms' ? 'Psalm' : item.book} chapter ${item.chapters[ci]}.` });
+      const p = document.createElement('p');
+      verses.forEach((v) => {
+        const span = document.createElement('span');
+        span.className = 'verse';
+        span.innerHTML = `<sup>${v.n}</sup>`;
+        span.append(document.createTextNode(v.text + ' '));
+        span.dataset.seg = current.segments.length;
+        current.segments.push({ el: span, speak: v.text });
+        p.append(span);
+      });
+      body.append(p);
+    });
+    if (autoplay) play();
+  } catch (err) {
+    body.innerHTML = `<p class="status">${err.message}.<br>Check your connection and try again.</p>`;
+  }
+}
+
+function closeReader() {
+  stopSpeech();
+  current = null;
+  reader.close();
+}
+
+$('#reader-close').addEventListener('click', closeReader);
+reader.addEventListener('cancel', (e) => { e.preventDefault(); closeReader(); });
+
+$('#reader-body').addEventListener('click', (e) => {
+  const v = e.target.closest('.verse');
+  if (!v) return;
+  pos = +v.dataset.seg;
+  if (playing) speakFrom(pos);
+  else highlight(pos);
+});
+
+$('#play-btn').addEventListener('click', () => (playing ? pause() : play()));
+$('#prev-verse').addEventListener('click', () => skip(-1));
+$('#next-verse').addEventListener('click', () => skip(1));
+
+$('#mark-btn').addEventListener('click', () => {
+  if (!current) return;
+  setRead(current.index, !isRead(current.index));
+  updateMarkBtn();
+});
+
+const RATES = [0.75, 0.9, 1, 1.15, 1.3, 1.5];
+$('#rate-btn').addEventListener('click', () => {
+  const next = RATES.find((r) => r > state.rate + 0.001) ?? RATES[0];
+  setRate(next);
+});
+
+function setRate(r) {
+  state.rate = r;
+  save();
+  updateRateBtn();
+  $('#set-rate').value = r;
+  $('#rate-label').textContent = `${r.toFixed(2)}×`;
+  if (playing) speakFrom(pos);
+}
+
+function updateMarkBtn() {
+  const done = current && isRead(current.index);
+  const btn = $('#mark-btn');
+  btn.textContent = done ? '✓ Read' : 'Mark read';
+  btn.className = `btn ${done ? 'done' : 'ghost'}`;
+}
+
+function updateRateBtn() {
+  $('#rate-btn').textContent = `${+state.rate.toFixed(2)}×`;
+}
+
+function highlight(i) {
+  document.querySelectorAll('.verse.speaking').forEach((el) => el.classList.remove('speaking'));
+  const seg = current?.segments[i];
+  if (!seg) return;
+  if (seg.el.classList.contains('verse')) seg.el.classList.add('speaking');
+  seg.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function play() {
+  if (!current?.segments.length) return;
+  if (pos >= current.segments.length) pos = 0;
+  speakFrom(pos);
+}
+
+function pause() {
+  gen++;
+  speechSynthesis.cancel();
+  setPlaying(false);
+}
+
+function stopSpeech() {
+  pause();
+  pos = 0;
+  document.querySelectorAll('.verse.speaking').forEach((el) => el.classList.remove('speaking'));
+}
+
+function skip(delta) {
+  if (!current?.segments.length) return;
+  pos = Math.max(0, Math.min(current.segments.length - 1, pos + delta));
+  if (playing) speakFrom(pos);
+  else highlight(pos);
+}
+
+// Speak one verse at a time: keeps highlighting in sync and avoids the
+// browser cutting off long utterances.
+function speakFrom(i) {
+  gen++;
+  const myGen = gen;
+  speechSynthesis.cancel();
+  setPlaying(true);
+  const step = (j) => {
+    if (myGen !== gen) return;
+    if (!current || j >= current.segments.length) {
+      setPlaying(false);
+      pos = 0;
+      highlight(-1);
+      if (current && state.automark && !isRead(current.index)) {
+        setRead(current.index, true);
+        updateMarkBtn();
+      }
+      return;
+    }
+    pos = j;
+    highlight(j);
+    const u = new SpeechSynthesisUtterance(current.segments[j].speak);
+    const voice = pickVoice();
+    if (voice) { u.voice = voice; u.lang = voice.lang; }
+    u.rate = state.rate;
+    u.onend = () => step(j + 1);
+    u.onerror = (e) => {
+      if (e.error === 'interrupted' || e.error === 'canceled') return;
+      // Blocked or broken speech: stop rather than racing to the end (and auto-marking).
+      if (myGen === gen) setPlaying(false);
+    };
+    speechSynthesis.speak(u);
+  };
+  // Small delay lets cancel() settle (Safari drops an immediate speak otherwise).
+  setTimeout(() => step(i), 60);
+}
+
+async function setPlaying(on) {
+  playing = on;
+  $('#play-btn').classList.toggle('playing', on);
+  $('#play-btn').setAttribute('aria-label', on ? 'Pause' : 'Listen');
+  // Keep the screen on while listening; speech stops on many phones once they lock.
+  try {
+    if (on && !wakeLock && 'wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } else if (!on && wakeLock) {
+      await wakeLock.release();
+      wakeLock = null;
+    }
+  } catch {}
+}
+
+// ---------- Voices ----------
+
+let voices = [];
+
+function loadVoices() {
+  voices = speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith('en'));
+  const sel = $('#set-voice');
+  const chosen = pickVoice();
+  sel.innerHTML = voices.map((v) =>
+    `<option value="${v.voiceURI}" ${chosen && v.voiceURI === chosen.voiceURI ? 'selected' : ''}>${v.name} (${v.lang})</option>`
+  ).join('');
+  $('#voice-hint').textContent = voices.length
+    ? 'Voices come from your device. On iPhone, download "Enhanced" or "Premium" voices in Settings › Accessibility › Spoken Content › Voices for the most natural sound.'
+    : 'No English voices found on this device.';
+}
+
+function pickVoice() {
+  if (!voices.length) return null;
+  const saved = voices.find((v) => v.voiceURI === state.voice);
+  if (saved) return saved;
+  const score = (v) =>
+    (/premium|enhanced|natural|neural/i.test(v.name) ? 4 : 0) +
+    (v.lang === 'en-US' ? 2 : 0) +
+    (v.localService ? 1 : 0) +
+    (v.default ? 1 : 0);
+  return [...voices].sort((a, b) => score(b) - score(a))[0];
+}
+
+if ('speechSynthesis' in window) {
+  loadVoices();
+  speechSynthesis.addEventListener?.('voiceschanged', loadVoices);
+}
+
+// ---------- Settings ----------
+
+const settings = $('#settings');
+
+$('#settings-btn').addEventListener('click', () => {
+  $('#set-start').value = state.start;
+  $('#set-translation').value = state.translation;
+  $('#set-rate').value = state.rate;
+  $('#rate-label').textContent = `${state.rate.toFixed(2)}×`;
+  $('#set-automark').checked = state.automark;
+  loadVoices();
+  settings.showModal();
+});
+$('#settings-close').addEventListener('click', () => settings.close());
+
+$('#set-start').addEventListener('change', (e) => {
+  if (!e.target.value) return;
+  state.start = e.target.value;
+  save();
+  render();
+});
+$('#set-translation').addEventListener('change', (e) => { state.translation = e.target.value; save(); });
+$('#set-voice').addEventListener('change', (e) => { state.voice = e.target.value; save(); });
+$('#set-rate').addEventListener('input', (e) => setRate(+e.target.value));
+$('#set-automark').addEventListener('change', (e) => { state.automark = e.target.checked; save(); });
+
+$('#test-voice').addEventListener('click', () => {
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance('The Lord is my shepherd; I shall not want.');
+  const voice = pickVoice();
+  if (voice) { u.voice = voice; u.lang = voice.lang; }
+  u.rate = state.rate;
+  speechSynthesis.speak(u);
+});
+
+$('#export-btn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `daily-reading-progress-${isoDate(new Date())}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+
+$('#import-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (typeof data.read !== 'object' || !data.start) throw new Error('bad file');
+    state = { ...defaults, ...data };
+    save();
+    render();
+    settings.close();
+  } catch {
+    $('#voice-hint').textContent = "That file doesn't look like a Daily Reading backup.";
+  }
+  e.target.value = '';
+});
+
+// ---------- Boot ----------
+
+// Re-render when the app is reopened on a new day.
+document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+loadPlan().then(() => {
+  render();
+});
