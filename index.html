@@ -28,9 +28,10 @@
       <h1>Daily Reading</h1>
     </div>
     <div class="top-actions">
-    <button class="icon-btn account-btn" id="account-btn" hidden>
+    <button class="icon-btn account-btn" id="account-btn" aria-label="Account">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>
       <span class="account-dot" aria-hidden="true"></span>
+      <span class="account-label">Sign in</span>
     </button>
     <button class="icon-btn" id="settings-btn" aria-label="Settings">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -217,6 +218,49 @@
     </div>
   </dialog>
 
+  <!-- Account & sync -->
+  <dialog id="account" class="sheet">
+    <div class="sheet-head">
+      <button class="icon-btn" id="account-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="sheet-title"><h2>Account</h2></div>
+      <span class="spacer"></span>
+    </div>
+    <div class="account-body sync" id="sync-section">
+      <div class="account-hero">
+        <span class="account-avatar" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        </span>
+        <h3 id="account-heading">Sync across your devices</h3>
+        <p id="account-sub">Sign in with your email to keep your progress, schedule and marked verses the same on your phone, tablet and computer. No password needed.</p>
+      </div>
+      <div class="set-card">
+          <div class="set-row stacked" id="sync-signed-out">
+            <div class="row nowrap">
+              <input type="email" id="sync-email-input" placeholder="you@example.com" autocomplete="email" inputmode="email">
+              <button class="btn primary" id="sync-send" type="button">Email me a link</button>
+            </div>
+            <div id="sync-paste" hidden>
+              <small>Using the home-screen app on iPhone? Tapping the link signs in Safari instead. Long-press the link in the email, choose Copy, and paste it here:</small>
+              <div class="row nowrap">
+                <input type="url" id="sync-link-input" placeholder="Paste sign-in link">
+                <button class="btn ghost" id="sync-paste-btn" type="button">Sign in</button>
+              </div>
+            </div>
+            <small class="sync-message" id="sync-message" hidden></small>
+          </div>
+          <div class="set-row stacked" id="sync-signed-in" hidden>
+            <span class="set-text"><span class="set-name">Signed in as <strong id="sync-email"></strong></span><small id="sync-status"></small></span>
+            <div class="row">
+              <button class="btn ghost" id="sync-now" type="button">Sync now</button>
+              <button class="btn ghost" id="sync-signout" type="button">Sign out</button>
+            </div>
+          </div>
+        </div>
+    </div>
+  </dialog>
+
   <!-- Marked verses for group review -->
   <dialog id="review" class="sheet">
     <div class="sheet-head">
@@ -324,31 +368,13 @@
         </div>
       </section>
 
-      <section class="set-group sync" id="sync-section" aria-labelledby="sg-sync">
-        <h3 id="sg-sync">Sync across devices</h3>
+      <section class="set-group" id="account-group" aria-labelledby="sg-account">
+        <h3 id="sg-account">Account</h3>
         <div class="set-card">
-          <div class="set-row stacked" id="sync-signed-out">
-            <small>Sign in with your email to keep your progress and schedule the same on your phone, tablet and computer.</small>
-            <div class="row nowrap">
-              <input type="email" id="sync-email-input" placeholder="you@example.com" autocomplete="email" inputmode="email">
-              <button class="btn primary" id="sync-send" type="button">Email me a link</button>
-            </div>
-            <div id="sync-paste" hidden>
-              <small>Using the home-screen app on iPhone? Tapping the link signs in Safari instead. Long-press the link in the email, choose Copy, and paste it here:</small>
-              <div class="row nowrap">
-                <input type="url" id="sync-link-input" placeholder="Paste sign-in link">
-                <button class="btn ghost" id="sync-paste-btn" type="button">Sign in</button>
-              </div>
-            </div>
-            <small class="sync-message" id="sync-message" hidden></small>
-          </div>
-          <div class="set-row stacked" id="sync-signed-in" hidden>
-            <span class="set-text"><span class="set-name">Signed in as <strong id="sync-email"></strong></span><small id="sync-status"></small></span>
-            <div class="row">
-              <button class="btn ghost" id="sync-now" type="button">Sync now</button>
-              <button class="btn ghost" id="sync-signout" type="button">Sign out</button>
-            </div>
-          </div>
+          <button class="set-row set-link" id="settings-account" type="button">
+            <span class="set-text"><span class="set-name">Account &amp; sync</span><small id="settings-account-status">Not signed in</small></span>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
         </div>
       </section>
 

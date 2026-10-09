@@ -139,13 +139,15 @@ function setStatus(text, isError = false) {
 function renderAccount() {
   $('#sync-signed-out').hidden = Boolean(user);
   $('#sync-signed-in').hidden = !user;
+  // Header icon: always shown; highlighted with a dot while signed in.
   const btn = $('#account-btn');
-  btn.hidden = !user;
-  if (user) {
-    btn.title = `Signed in as ${user.email} · syncing`;
-    btn.setAttribute('aria-label', `Signed in as ${user.email}`);
-    $('#signin-banner').hidden = true;
-  }
+  btn.classList.toggle('signed-in', Boolean(user));
+  btn.title = user ? `Signed in as ${user.email} · syncing` : 'Sign in to sync';
+  btn.setAttribute('aria-label', user ? `Account: signed in as ${user.email}` : 'Account: sign in to sync');
+  $('#settings-account-status').textContent = user ? `Signed in as ${user.email}` : 'Not signed in';
+  $('#account-heading').textContent = user ? 'You’re signed in' : 'Sync across your devices';
+  $('#account-sub').hidden = Boolean(user);
+  if (user) $('#signin-banner').hidden = true;
   if (user) {
     $('#sync-email').textContent = user.email;
     setStatus();
@@ -215,18 +217,20 @@ $('#sync-signout').addEventListener('click', async () => {
   signingOut = false;
 });
 
-// Open Settings at the sync section (account icon, expired-session banner).
-function openSyncSettings() {
-  $('#settings-btn').click();
-  $('#sg-sync').scrollIntoView({ block: 'start' });
+// Account screen (header icon, Settings row, expired-session banner).
+const accountDialog = $('#account');
+function openAccount() {
+  if (!accountDialog.open) accountDialog.showModal();
+  if (!user) $('#sync-email-input').focus();
 }
 
-$('#account-btn').addEventListener('click', openSyncSettings);
+$('#account-btn').addEventListener('click', openAccount);
+$('#settings-account').addEventListener('click', openAccount);
+$('#account-close').addEventListener('click', () => accountDialog.close());
 $('#signin-again').addEventListener('click', () => {
   $('#signin-banner').hidden = true;
   if (meta.email) $('#sync-email-input').value = meta.email;
-  openSyncSettings();
-  $('#sync-email-input').focus();
+  openAccount();
 });
 $('#signin-dismiss').addEventListener('click', () => { $('#signin-banner').hidden = true; });
 
@@ -239,8 +243,10 @@ function showExpired() {
 // ---------- Wiring ----------
 
 if (!sb) {
-  $('#sync-section').hidden = true;
+  $('#account-btn').hidden = true;
+  $('#account-group').hidden = true;
 } else {
+  renderAccount();
   sb.auth.onAuthStateChange((event, session) => {
     const wasSignedOut = !user;
     user = session?.user ?? null;
