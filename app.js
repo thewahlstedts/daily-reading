@@ -51,7 +51,7 @@ function todayIndex() {
   return dayNumber(isoDate(new Date())) - dayNumber(state.start);
 }
 
-const fmtShort = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
+const fmtShort = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 const fmtLong = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 const fmtMonth = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
 
