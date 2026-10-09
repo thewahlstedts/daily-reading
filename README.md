@@ -5,6 +5,7 @@ A small installable web app for a one-year Bible reading plan: shows today's rea
 - **Plan:** `plan.txt`, one reading per line (`Book N` or `Book N-M`). Swap it out for a new year's plan.
 - **Text:** fetched from [bible-api.com](https://bible-api.com) (WEB, KJV, ASV, BBE, YLT, Darby). Chapters you open are cached for offline use.
 - **Audio:** the device's built-in text-to-speech voices.
+- **Sharing:** the share button sends a link like `?start=2026-09-01` so others follow the same schedule. New visitors adopt it automatically; anyone with their own start date is asked first.
 - **Progress:** stored in the browser on each device. Use Settings → Export/Import to move it.
 
 ## Run locally

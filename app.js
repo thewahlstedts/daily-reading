@@ -207,6 +207,7 @@ $('#toast-undo').addEventListener('click', () => {
 
 function showToast(text) {
   $('#toast-text').textContent = text;
+  $('#toast-undo').hidden = !undoCatchUp;
   $('#toast').hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(hideToast, 6000);
@@ -570,6 +571,75 @@ $('#import-file').addEventListener('change', async (e) => {
   e.target.value = '';
 });
 
+// ---------- Sharing ----------
+
+// A shared link carries the sharer's start date (?start=YYYY-MM-DD) so the
+// recipient's schedule lines up day for day.
+function shareUrl() {
+  const url = new URL(location.href);
+  url.search = '';
+  url.hash = '';
+  url.searchParams.set('start', state.start);
+  return url.toString();
+}
+
+async function sharePlan() {
+  const url = shareUrl();
+  const text = `Read through the Bible with me — this plan started ${fmtLong.format(dateForIndex(0))}.`;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'Daily Reading', text, url });
+      return;
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+    }
+  }
+  undoCatchUp = null;
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('Link copied');
+  } catch {
+    showToast(url);
+  }
+}
+
+$('#share-btn').addEventListener('click', sharePlan);
+$('#share-btn-settings').addEventListener('click', sharePlan);
+
+function handleSharedLink() {
+  const params = new URLSearchParams(location.search);
+  const shared = params.get('start');
+  if (!shared) return;
+  history.replaceState(null, '', location.pathname);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(shared) || isNaN(dayNumber(shared))) return;
+  if (shared === state.start) return;
+
+  let hasOwnStart = false;
+  try { hasOwnStart = 'start' in JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch {}
+  const [y, m, d] = shared.split('-').map(Number);
+  const sharedLabel = fmtLong.format(new Date(y, m - 1, d));
+
+  if (!hasOwnStart) {
+    // First visit: just adopt the sharer's schedule.
+    state.start = shared;
+    save();
+    render();
+    undoCatchUp = null;
+    showToast(`Plan synced to start ${sharedLabel}`);
+    return;
+  }
+
+  $('#shared-text').textContent = `This link starts the plan on ${sharedLabel}. Your plan currently starts ${fmtLong.format(dateForIndex(0))}. Switch so your readings line up?`;
+  $('#shared-banner').hidden = false;
+  $('#shared-use').onclick = () => {
+    state.start = shared;
+    save();
+    render();
+    $('#shared-banner').hidden = true;
+  };
+  $('#shared-keep').onclick = () => { $('#shared-banner').hidden = true; };
+}
+
 // ---------- Boot ----------
 
 // Re-render when the app is reopened on a new day.
@@ -581,4 +651,5 @@ if ('serviceWorker' in navigator) {
 
 loadPlan().then(() => {
   render();
+  handleSharedLink();
 });
