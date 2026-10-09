@@ -30,6 +30,7 @@ function load() {
 
 function save() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch {}
+  window.onStateSaved?.();
 }
 
 // ---------- Dates (day granularity, DST-safe) ----------

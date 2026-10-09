@@ -113,6 +113,33 @@
       <span class="spacer"></span>
     </div>
     <form class="settings" id="settings-form" onsubmit="return false">
+      <div class="field sync" id="sync-section">
+        <p class="label">Sync across devices</p>
+        <div id="sync-signed-out">
+          <small>Sign in with your email to keep your progress, start date and translation in sync on all your devices.</small>
+          <div class="row sync-row">
+            <input type="email" id="sync-email-input" placeholder="you@example.com" autocomplete="email" inputmode="email">
+            <button class="btn primary" id="sync-send" type="button">Email me a link</button>
+          </div>
+          <div id="sync-paste" hidden>
+            <small>Using the home-screen app on iPhone? Tapping the link signs in Safari instead. Long-press the link in the email, choose Copy, and paste it here:</small>
+            <div class="row sync-row">
+              <input type="url" id="sync-link-input" placeholder="Paste sign-in link">
+              <button class="btn ghost" id="sync-paste-btn" type="button">Sign in</button>
+            </div>
+          </div>
+          <small class="sync-message" id="sync-message" hidden></small>
+        </div>
+        <div id="sync-signed-in" hidden>
+          <p class="sync-who">Signed in as <strong id="sync-email"></strong></p>
+          <small id="sync-status"></small>
+          <div class="row">
+            <button class="btn ghost" id="sync-now" type="button">Sync now</button>
+            <button class="btn ghost" id="sync-signout" type="button">Sign out</button>
+          </div>
+        </div>
+      </div>
+      <hr>
       <div class="field">
         <p class="label">Theme</p>
         <div class="themes" id="theme-picker" role="radiogroup" aria-label="Theme"></div>
@@ -157,6 +184,8 @@
     </form>
   </dialog>
 
+  <script src="vendor/supabase-2.117.1.js"></script>
   <script src="app.js"></script>
+  <script src="sync.js"></script>
 </body>
 </html>
