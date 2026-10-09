@@ -13,6 +13,7 @@ const defaults = {
   voice: '',
   rate: 1,
   automark: true,
+  showCompleted: false,
 };
 
 let state = load();
@@ -100,41 +101,53 @@ function render() {
   if (behind.length) progress += ` · ${behind.length} behind`;
   $('#progress-text').textContent = progress;
 
-  // Today card
+  // Featured card: always the earliest reading not yet done.
+  const next = plan.findIndex((_, i) => !isRead(i));
   const card = $('#today-card');
-  if (t < 0) {
-    card.innerHTML = `<p class="eyebrow">Starts ${fmtLong.format(dateForIndex(0))}</p>
-      <p class="ref">${plan[0].ref}</p>
-      <div class="actions"><button class="btn primary" data-open="0">Read ahead</button></div>`;
-  } else if (t >= total) {
-    card.innerHTML = `<p class="eyebrow">Plan finished</p>
-      <p class="ref">${behind.length ? 'Almost there' : 'Well done'}</p>
-      <p class="note">${behind.length ? `${behind.length} reading${behind.length > 1 ? 's' : ''} left to catch up on below.` : 'You completed every reading in the plan.'}</p>`;
+  if (next === -1) {
+    card.innerHTML = `<p class="eyebrow done">Plan complete</p>
+      <p class="ref">Well done</p>
+      <p class="note">You've finished every reading in the plan.</p>`;
   } else {
-    const done = isRead(t);
-    card.innerHTML = `<p class="eyebrow">Today's reading</p>
-      <p class="ref">${plan[t].ref}</p>
+    const when = fmtLong.format(dateForIndex(next));
+    let label;
+    if (next < t) label = `<p class="eyebrow late">Catch up · ${when}</p>`;
+    else if (next === t) label = `<p class="eyebrow">Today's reading</p>`;
+    else if (t < 0) label = `<p class="eyebrow">Plan starts ${when}</p>`;
+    else label = `<p class="eyebrow done">✓ Today's done · Up next ${when}</p>`;
+    card.innerHTML = `${label}
+      <p class="ref">${plan[next].ref}</p>
       <div class="actions">
-        <button class="btn primary" data-open="${t}">Read</button>
-        <button class="btn primary" data-listen="${t}">Listen</button>
-        <button class="btn ${done ? 'done' : 'ghost'}" data-toggle="${t}">${done ? '✓ Read' : 'Mark read'}</button>
+        <button class="btn primary" data-open="${next}">Read</button>
+        <button class="btn primary" data-listen="${next}">Listen</button>
+        <button class="btn ghost" data-toggle="${next}">Mark read</button>
       </div>`;
   }
 
-  // Catch up
-  $('#behind').hidden = behind.length === 0;
-  $('#behind-list').innerHTML = behind.map((i) => itemHtml(i, t)).join('');
+  // Catch up (the featured reading is already shown above)
+  const others = behind.filter((i) => i !== next);
+  $('#behind').hidden = others.length === 0;
+  $('#behind-list').innerHTML = others.map((i) => itemHtml(i, t)).join('');
 
-  // Full plan grouped by month
+  // Plan list: upcoming unread readings, or everything when showing completed
+  const show = state.showCompleted
+    ? plan.map((_, i) => i)
+    : plan.map((_, i) => i).filter((i) => !isRead(i) && i !== next && i >= t);
+  $('#plan-heading').textContent = state.showCompleted ? 'Full plan' : 'Up next';
+  $('#completed-btn').textContent = state.showCompleted ? 'Hide completed' : `Show completed (${doneCount})`;
+  $('#jump-btn').hidden = !state.showCompleted;
+
   const groups = new Map();
-  plan.forEach((_, i) => {
+  show.forEach((i) => {
     const key = fmtMonth.format(dateForIndex(i));
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(i);
   });
-  $('#plan-list').innerHTML = [...groups].map(([month, idxs]) =>
-    `<div class="month"><h3>${month}</h3><ul class="list">${idxs.map((i) => itemHtml(i, t)).join('')}</ul></div>`
-  ).join('');
+  $('#plan-list').innerHTML = groups.size
+    ? [...groups].map(([month, idxs]) =>
+        `<div class="month"><h3>${month}</h3><ul class="list">${idxs.map((i) => itemHtml(i, t)).join('')}</ul></div>`
+      ).join('')
+    : '<p class="empty">Nothing left after this one.</p>';
 }
 
 function itemHtml(i, t) {
@@ -202,6 +215,12 @@ function hideToast() {
   $('#toast').hidden = true;
   undoCatchUp = null;
 }
+
+$('#completed-btn').addEventListener('click', () => {
+  state.showCompleted = !state.showCompleted;
+  save();
+  render();
+});
 
 $('#jump-btn').addEventListener('click', () => {
   const t = Math.max(0, Math.min(todayIndex(), plan.length - 1));
