@@ -1,6 +1,6 @@
 // App shell: network-first so updates show up, falling back to cache offline.
 // Scripture: cache-first, so any chapter you've opened works offline.
-const SHELL = 'daily-reading-shell-v16';
+const SHELL = 'daily-reading-shell-v18';
 const TEXT = 'daily-reading-text-v2';
 const SHELL_FILES = ['./', 'index.html', 'theme-init.js', 'copyright.html', 'styles.css', 'app.js', 'sync.js', 'onboarding.js', 'vendor/supabase-2.117.1.js', 'plan.txt', 'manifest.webmanifest', 'icon.svg', 'favicon.svg', 'favicon-32.png', 'icon-180.png', 'icon-512.png'];
 
@@ -38,7 +38,11 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(
       fetch(request, { cache: 'no-cache' }) // revalidate past the HTTP cache so updates show immediately
         .then((res) => {
-          if (res.ok) caches.open(SHELL).then((c) => c.put(request, res.clone()));
+          // Clone now: the page will consume the original body before an async clone would run.
+          if (res.ok) {
+            const copy = res.clone();
+            e.waitUntil(caches.open(SHELL).then((c) => c.put(request, copy)));
+          }
           return res;
         })
         .catch(() => caches.match(request, { ignoreSearch: true }))

@@ -8,7 +8,7 @@ const $ = (sel) => document.querySelector(sel);
 const defaults = {
   start: '2026-09-01',  // default plan start; change in Settings
   read: {},            // plan index -> ISO date it was marked read
-  translation: 'bsb',
+  translation: 'leb',   // bundled, so it works offline from day one
   narrator: 'hays',
   voice: '',
   rate: 1,
@@ -520,7 +520,7 @@ const BOOK_CODES = {
   '3 John': '3JN', Jude: 'JUD', Revelation: 'REV',
 };
 
-const bible = () => BIBLES.find((b) => b.id === state.translation) || BIBLES.find((b) => b.id === 'bsb');
+const bible = () => BIBLES.find((b) => b.id === state.translation) || BIBLES.find((b) => b.id === 'leb');
 const passageCache = new Map();
 
 function apiBook(book) {
@@ -1192,7 +1192,7 @@ function renderListening() {
   $('#voice-row').hidden = useNarration();
 }
 
-$('#set-translation').addEventListener('change', (e) => { state.translation = e.target.value; save(); renderListening(); });
+$('#set-translation').addEventListener('change', (e) => { state.translation = e.target.value; save(); renderListening(); prefetchBundledBible(); });
 $('#set-narrator').addEventListener('change', (e) => { state.narrator = e.target.value; save(); renderListening(); });
 $('#set-voice').addEventListener('change', (e) => { state.voice = e.target.value; save(); });
 $('#set-rate').addEventListener('input', (e) => setRate(+e.target.value));
@@ -1335,4 +1335,14 @@ if ('serviceWorker' in navigator) {
 const planReady = loadPlan().then(() => {
   render();
   handleSharedLink();
+  setTimeout(prefetchBundledBible, 3000);
 });
+
+// Bundled Bibles work offline: once the app has settled, fetch every book the
+// plan uses so the service worker caches them (a few MB at most, once).
+function prefetchBundledBible() {
+  const b = bible();
+  if (!b.local || !navigator.onLine) return;
+  const codes = [...new Set(plan.map((item) => BOOK_CODES[item.book]).filter(Boolean))];
+  codes.reduce((chain, code) => chain.then(() => fetch(`${b.local}/${code}.json`).catch(() => {})), Promise.resolve());
+}

@@ -159,6 +159,7 @@ $('#ob-translations').addEventListener('click', (e) => {
   save();
   renderTranslations();
   renderListening();
+  prefetchBundledBible();
 });
 
 function renderShare() {
