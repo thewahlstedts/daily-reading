@@ -49,7 +49,7 @@
 .scripture .copyright { font-family: var(--sans); font-size: 12px; line-height: 1.5; color: var(--muted); margin-top: 32px; }
 .scripture .copyright a, .fine a { color: var(--accent); }
 [hidden] { display: none !important; }
-html { -webkit-text-size-adjust: 100%; accent-color: var(--accent); }
+html { -webkit-text-size-adjust: 100%; accent-color: var(--accent); touch-action: manipulation; } /* no double-tap zoom; pinch zoom still works */
 body {
   margin: 0;
   background: var(--bg);
@@ -90,6 +90,9 @@ section > h2, .section-head { margin-bottom: 10px; }
 .section-head { display: flex; justify-content: space-between; align-items: baseline; }
 #behind { margin-bottom: 28px; }
 #week { margin-bottom: 28px; }
+.top-actions { display: flex; align-items: center; gap: 2px; }
+.account-btn { position: relative; color: var(--accent); }
+.account-dot { position: absolute; right: 6px; bottom: 6px; width: 9px; height: 9px; border-radius: 50%; background: var(--done); border: 2px solid var(--bg); }
 .review-btn { width: 100%; margin-top: 10px; }
 .review-btn:disabled { opacity: .55; cursor: default; }
 #marks-entry { margin-bottom: 20px; }

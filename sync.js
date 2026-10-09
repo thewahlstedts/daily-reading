@@ -17,6 +17,7 @@ const sb = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY, {
 });
 
 let user = null;
+let signingOut = false; // distinguishes a deliberate sign-out from an expired session
 let pushTimer = null;
 let syncing = false;
 // { remoteAt: ISO timestamp of the last remote version we've seen, pushed: JSON of what we last pushed }
@@ -134,6 +135,13 @@ function setStatus(text, isError = false) {
 function renderAccount() {
   $('#sync-signed-out').hidden = Boolean(user);
   $('#sync-signed-in').hidden = !user;
+  const btn = $('#account-btn');
+  btn.hidden = !user;
+  if (user) {
+    btn.title = `Signed in as ${user.email} · syncing`;
+    btn.setAttribute('aria-label', `Signed in as ${user.email}`);
+    $('#signin-banner').hidden = true;
+  }
   if (user) {
     $('#sync-email').textContent = user.email;
     setStatus();
@@ -182,10 +190,33 @@ $('#sync-now').addEventListener('click', async () => {
 });
 
 $('#sync-signout').addEventListener('click', async () => {
+  signingOut = true;
   await sb.auth.signOut();
   meta = {};
   saveMeta();
+  signingOut = false;
 });
+
+// Open Settings at the sync section (account icon, expired-session banner).
+function openSyncSettings() {
+  $('#settings-btn').click();
+  $('#sg-sync').scrollIntoView({ block: 'start' });
+}
+
+$('#account-btn').addEventListener('click', openSyncSettings);
+$('#signin-again').addEventListener('click', () => {
+  $('#signin-banner').hidden = true;
+  if (meta.email) $('#sync-email-input').value = meta.email;
+  openSyncSettings();
+  $('#sync-email-input').focus();
+});
+$('#signin-dismiss').addEventListener('click', () => { $('#signin-banner').hidden = true; });
+
+// Previously signed in on this device, but the session is gone (expired or revoked).
+function showExpired() {
+  if (signingOut || !meta.userId) return;
+  $('#signin-banner').hidden = false;
+}
 
 // ---------- Wiring ----------
 
@@ -196,10 +227,12 @@ if (!sb) {
     const wasSignedOut = !user;
     user = session?.user ?? null;
     renderAccount();
+    if (!user && (event === 'INITIAL_SESSION' || event === 'SIGNED_OUT')) showExpired();
     if (user && wasSignedOut) {
       // Defer: calling Supabase inside this callback can deadlock the auth client.
       const firstSignIn = meta.userId !== user.id;
       meta.userId = user.id;
+      meta.email = user.email;
       saveMeta();
       setTimeout(() => pull({ firstSignIn }), 0);
     }
