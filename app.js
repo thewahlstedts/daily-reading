@@ -765,8 +765,17 @@ $('#next-verse').addEventListener('click', () => skip(1));
 
 $('#mark-btn').addEventListener('click', () => {
   if (!current) return;
-  setRead(current.index, !isRead(current.index));
-  updateMarkBtn();
+  const i = current.index;
+  if (isRead(i)) {
+    setRead(i, false);
+    updateMarkBtn();
+    return;
+  }
+  // Done with this reading: mark it and return home, with a moment to undo.
+  setRead(i, true);
+  closeReader();
+  undoCatchUp = () => setRead(i, false);
+  showToast(`${plan[i].ref} marked as read`);
 });
 
 const RATES = [0.75, 0.9, 1, 1.15, 1.3, 1.5];
