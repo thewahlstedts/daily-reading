@@ -28,8 +28,8 @@ const MAX_NOTE = 1000;
 const AI_TOOLS = [
   { id: 'claude', name: 'Claude', url: 'https://claude.ai/new?q=' },
   { id: 'chatgpt', name: 'ChatGPT', url: 'https://chatgpt.com/?q=' },
-  { id: 'gemini', name: 'Gemini', url: 'https://gemini.google.com/app?q=' },
-  { id: 'google', name: 'Google', url: 'https://www.google.com/search?udm=50&q=', hint: 'AI Mode' },
+  { id: 'gemini', name: 'Gemini', url: 'https://gemini.google.com/app?q=', safari: true },
+  { id: 'google', name: 'Google', url: 'https://www.google.com/search?udm=50&q=', hint: 'AI Mode', safari: true },
   { id: 'none', name: 'Off' },
 ];
 
@@ -290,7 +290,21 @@ function askUrl(run) {
   if (!tool?.url) return null;
   const b = BIBLES.find((x) => x.id === state.marks[run[0]].t) || bible();
   const q = `Help me understand ${runLabel(run)} (${b.name}): its context, what it means, and related passages. I'm reading it with a weekly Bible reading group.`;
-  return tool.url + encodeURIComponent(q);
+  const url = tool.url + encodeURIComponent(q);
+  // In an iPhone home-screen app, target=_blank opens an in-app sheet that isn't signed in to
+  // Google, and Google's links don't hand off to their apps; x-safari- opens a real Safari tab.
+  return tool.safari && navigator.standalone ? `x-safari-${url}` : url;
+}
+
+function setAskLink(a, url) {
+  a.href = url;
+  a.textContent = `Ask ${aiTool().name}`;
+  if (url.startsWith('https:')) {
+    a.target = '_blank';
+    a.rel = 'noopener';
+  } else {
+    a.removeAttribute('target');
+  }
 }
 
 const noteDialog = $('#note-dialog');
@@ -410,10 +424,7 @@ async function renderReview() {
       const url = askUrl(run);
       const ask = document.createElement('a');
       ask.className = 'link-btn review-ask';
-      ask.target = '_blank';
-      ask.rel = 'noopener';
-      ask.textContent = `Ask ${aiTool().name}`;
-      if (url) ask.href = url;
+      if (url) setAskLink(ask, url);
       if (note) content.append(noteBtn, ...(url ? [ask] : []));
       else {
         const actions = document.createElement('div');
@@ -918,8 +929,7 @@ function showMarkBar(ref, before) {
   const url = marked && askUrl(markRun(ref));
   $('#mark-bar-ask').hidden = !url;
   if (url) {
-    $('#mark-bar-ask').href = url;
-    $('#mark-bar-ask').textContent = `Ask ${aiTool().name}`;
+    setAskLink($('#mark-bar-ask'), url);
   }
   $('#mark-bar').hidden = false;
   clearTimeout(markBarTimer);
