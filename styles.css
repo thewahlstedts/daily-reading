@@ -140,7 +140,11 @@ section > h2, .section-head { margin-bottom: 10px; }
 .review-verse .icon-btn { padding: 6px; }
 .review-verse p sup { font: 600 .55em var(--sans); color: var(--accent); margin-right: 3px; }
 .review-note { display: block; width: 100%; margin-top: 8px; padding: 8px 12px; border: 0; border-left: 3px solid var(--accent); border-radius: 0 10px 10px 0; background: var(--accent-soft); color: var(--ink); font: 15px/1.5 var(--sans); text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; cursor: pointer; }
-.review-add-note { margin-top: 4px; font-weight: 600; }
+.review-actions { display: flex; gap: 18px; margin-top: 4px; }
+.review-add-note, .review-ask { font-weight: 600; text-decoration: none; }
+.review-note + .review-ask { display: inline-block; margin-top: 6px; }
+.mark-bar a.link-btn { text-decoration: none; }
+.mark-bar [hidden] { display: none; }
 .review-body .copyright { font: 12px/1.5 var(--sans); color: var(--muted); margin: 8px 4px; }
 .review-body .copyright a { color: var(--accent); }
 .week-nav { display: flex; align-items: center; gap: 2px; }

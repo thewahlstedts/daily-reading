@@ -271,6 +271,14 @@ function unmarkVerse(ref) {
   }
 }
 
+// Opens Claude (web or app) with a question about the group, on the person's own subscription.
+// Only the reference goes in the link, never the text, so licensed translations aren't copied out.
+function askClaudeUrl(run) {
+  const b = BIBLES.find((x) => x.id === state.marks[run[0]].t) || bible();
+  const q = `Help me understand ${runLabel(run)} (${b.name}): its context, what it means, and related passages. I'm reading it with a weekly Bible reading group.`;
+  return `https://claude.ai/new?q=${encodeURIComponent(q)}`;
+}
+
 const noteDialog = $('#note-dialog');
 let noteRun = null;
 let noteDone = null;
@@ -385,7 +393,19 @@ async function renderReview() {
       noteBtn.dataset.note = run[0];
       noteBtn.textContent = note || '+ Add note';
       if (note) noteBtn.setAttribute('aria-label', `Edit note: ${note}`);
-      content.append(noteBtn);
+      const ask = document.createElement('a');
+      ask.className = 'link-btn review-ask';
+      ask.href = askClaudeUrl(run);
+      ask.target = '_blank';
+      ask.rel = 'noopener';
+      ask.textContent = 'Ask Claude';
+      if (note) content.append(noteBtn, ask);
+      else {
+        const actions = document.createElement('div');
+        actions.className = 'review-actions';
+        actions.append(noteBtn, ask);
+        content.append(actions);
+      }
       const unmark = document.createElement('button');
       unmark.className = 'icon-btn';
       unmark.dataset.unmark = run.join(' ');
@@ -880,6 +900,8 @@ function showMarkBar(ref, before) {
   $('#mark-bar-note').hidden = !marked;
   $('#mark-bar-note').textContent = marked && runNote(markRun(ref)) ? 'Edit note' : 'Add note';
   $('#mark-bar-undo').hidden = marked;
+  $('#mark-bar-ask').hidden = !marked;
+  if (marked) $('#mark-bar-ask').href = askClaudeUrl(markRun(ref));
   $('#mark-bar').hidden = false;
   clearTimeout(markBarTimer);
   markBarTimer = setTimeout(hideMarkBar, 8000);
