@@ -21,7 +21,6 @@ const defaults = {
   meetDay: null,       // 0 = Sunday … 6 = Saturday; null = not in a group
   onboarded: false,    // finished (or skipped) the getting-started walkthrough
   ai: 'claude',        // which AI the "Ask" links open (AI_TOOLS id)
-  claudeProject: '',   // optional claude.ai project link, so Claude questions open inside it
   marks: {},           // verses marked for the group: 'PSA.23.1' -> { i: plan index, at: ISO date, t: translation id, n?: note }
 };
 const MAX_NOTE = 1000;
@@ -33,7 +32,6 @@ const AI_TOOLS = [
   { id: 'google', name: 'Google', url: 'https://www.google.com/search?udm=50&q=', hint: 'AI Mode' },
   { id: 'none', name: 'Off' },
 ];
-const CLAUDE_PROJECT = /^https:\/\/claude\.ai\/project\/[0-9a-f-]{36}$/;
 
 function load() {
   try {
@@ -101,7 +99,6 @@ function sanitizeState(raw) {
   if (str(raw.leading, /^[a-z]{1,20}$/)) s.leading = raw.leading;
   if (Number.isInteger(raw.meetDay) && raw.meetDay >= 0 && raw.meetDay <= 6) s.meetDay = raw.meetDay;
   if (AI_TOOLS.some((t) => t.id === raw.ai)) s.ai = raw.ai;
-  if (typeof raw.claudeProject === 'string' && CLAUDE_PROJECT.test(raw.claudeProject)) s.claudeProject = raw.claudeProject;
   if (raw.marks && typeof raw.marks === 'object') {
     s.marks = {};
     for (const [k, v] of Object.entries(raw.marks)) {
@@ -293,14 +290,7 @@ function askUrl(run) {
   if (!tool?.url) return null;
   const b = BIBLES.find((x) => x.id === state.marks[run[0]].t) || bible();
   const q = `Help me understand ${runLabel(run)} (${b.name}): its context, what it means, and related passages. I'm reading it with a weekly Bible reading group.`;
-  const base = tool.id === 'claude' && state.claudeProject ? `${state.claudeProject}?q=` : tool.url;
-  return base + encodeURIComponent(q);
-}
-
-// Accepts a pasted project link (with or without a trailing slash or query) or returns null.
-function parseClaudeProject(value) {
-  const url = value.trim().replace(/[?#].*$/, '').replace(/\/+$/, '');
-  return CLAUDE_PROJECT.test(url) ? url : null;
+  return tool.url + encodeURIComponent(q);
 }
 
 const noteDialog = $('#note-dialog');
@@ -1394,28 +1384,9 @@ $('#set-ai').innerHTML = AI_TOOLS.map((t) => `<option value="${t.id}">${t.name}$
 
 function renderAiSetting() {
   $('#set-ai').value = state.ai;
-  $('#claude-project-row').hidden = state.ai !== 'claude';
-  $('#set-claude-project').value = state.claudeProject;
-  $('#claude-project-msg').hidden = true;
 }
 
 $('#set-ai').addEventListener('change', (e) => { state.ai = e.target.value; save(); renderAiSetting(); });
-
-// Shared by Settings and onboarding: saves a pasted project link, or explains why it can't.
-function saveClaudeProject(input, msg) {
-  const value = input.value.trim();
-  const url = value ? parseClaudeProject(value) : '';
-  msg.hidden = url !== null;
-  if (url === null) {
-    msg.textContent = 'That doesn\'t look like a Claude project link. Open the project in Claude and copy the address (claude.ai/project/…).';
-    return;
-  }
-  state.claudeProject = url;
-  input.value = url;
-  save();
-}
-
-$('#set-claude-project').addEventListener('change', (e) => saveClaudeProject(e.target, $('#claude-project-msg')));
 
 $('#set-translation').addEventListener('change', (e) => { state.translation = e.target.value; save(); renderListening(); prefetchBundledBible(); });
 $('#set-narrator').addEventListener('change', (e) => { state.narrator = e.target.value; save(); renderListening(); });
