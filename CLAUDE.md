@@ -13,8 +13,8 @@ Plain static files, no build step, no package manager. Classic `<script>` tags s
 | `theme-init.js` | Runs in `<head>` before paint: applies saved theme, swaps reading fonts in non-blocking |
 | `vendor/supabase-2.117.1.js` | Pinned supabase-js UMD build (vendored so it works offline and can't change under us) |
 | `app.js` | Everything else: `state` + `save()`, plan parsing, rendering, reader, speech, settings, themes, reading text, sharing |
-| `sync.js` | Optional Supabase sync; hooks in via `window.onStateSaved`; exposes `sendSignInLink` / `signInWithPastedLink` |
-| `onboarding.js` | First-visit walkthrough (sign-in, meeting day, start date + week preview, translation, look, share). Borrows `#theme-picker` / `#text-options` from Settings while open. Starts via `planReady`; current step persists in `daily-reading:onboard-step` so the email-link round trip resumes it. |
+| `sync.js` | Optional Supabase sync and the Account screen (`#account`); hooks in via `window.onStateSaved`; exposes `sendSignInLink` / `signInWithCode` / `getAccessToken` / `currentUserEmail` |
+| `onboarding.js` | First-visit walkthrough (sign-in, meeting day, start date + week preview, translation, look, share). Borrows `#theme-picker` / `#text-options` from Settings while open. Starts via `planReady`; current step persists in `daily-reading:onboard-step` so the email-link round trip resumes it. Arriving from a share link sets `daily-reading:invite`, which turns the welcome into a "You're invited" view. |
 | `sw.js` | Service worker: app shell network-first (`cache: 'no-cache'`), bible.helloao.org responses cache-first |
 | `plan.txt` | The plan: one reading per line, `Book N` or `Book N-M` |
 
@@ -28,8 +28,10 @@ Plain static files, no build step, no package manager. Classic `<script>` tags s
 - **Caching rules:** free/public-domain and bundled text may be cached offline. API.Bible text may only be cached if refreshed at least every 30 days, kept secure against copying, and deleted within 72 hours if the plan ends, so the app keeps it in memory only.
 - **Narration:** for `narrated` Bibles (BSB), `thisChapterAudioLinks` gives human-read MP3s per narrator plus per-verse start times (`*.audioTimings.json`, `verses[n-1]`). `narrateFrom()` plays them in one `<audio>` element, highlighting on `timeupdate`; other translations use speech synthesis. Media Session gives lock-screen controls. (Note: Chrome won't load media in a hidden/background tab, so automated browser tests can't hear playback.)
 - **Speech:** Web Speech API, one utterance per verse. `gen` counter invalidates stale utterance callbacks.
+- **Reader:** tapping a verse marks it (it does not seek audio; use ‹ ›). "Mark read" closes the reader with an Undo toast; auto-mark after listening keeps it open.
+- **Account UI:** header shows a "Sign in" pill when signed out, or an accent icon with a green dot when signed in; both open the Account screen. A device that was signed in but lost its session shows the `#signin-banner` on load (not after a deliberate sign-out).
 - **Marked verses:** tapping a verse in the reader toggles `state.marks['PSA.23.1'] = { i: planIndex, at, t: translationId }`. Only references are stored (never text, so licensed translations aren't cached); the review sheet (`renderReview()`) fetches each verse in the translation it was marked in and shows the required notices. The week section's "Marked verses" button reviews that week's marks; without a group, `#marks-entry` shows all.
-- **Onboarding:** `state.onboarded` (synced). Saved state from before onboarding existed counts as onboarded (`load()`). Finishing or skipping marks every reading before the current week (`dueBefore()`) as read so new users start fresh; signing in during onboarding to an already-set-up account calls `window.onAccountRestored`, which ends it without touching their progress.
+- **Onboarding:** `state.onboarded` (synced). Picking a meeting day sets the start to the day after that weekday, on or before the default start (`alignedStart()`; Wednesday → Thu Aug 27), so each group week is 7 full readings; start dates from a share link are kept. Saved state from before onboarding existed counts as onboarded (`load()`). Finishing or skipping marks every reading before the current week (`dueBefore()`) as read so new users start fresh; signing in during onboarding to an already-set-up account calls `window.onAccountRestored`, which ends it without touching their progress.
 - **Sync:** `SYNCED_FIELDS` (start, read, translation, automark, meetDay, marks, onboarded) are synced; marks merge like checkmarks; theme, voice, speed and reading text stay per device. If only the local copy changed, it wins. If both changed, checkmarks are merged (union) and account settings win.
 
 ## Conventions
@@ -63,13 +65,14 @@ Plain static files, no build step, no package manager. Classic `<script>` tags s
   ```
   Verify the change actually landed (e.g. `supabase db query --linked "<sql>"`), because an empty migration file still gets recorded as applied.
 - `supabase/config.toml` mirrors the remote project. **Always run `supabase config diff` before `supabase config push`**: any value declared in the file overwrites the remote, so keep it matching.
-- Free plan: built-in email sends only a few sign-in emails per hour, and projects pause after about a week of inactivity.
+- Sign-in email limit is 30/hour (set in the dashboard under Authentication → Rate Limits) and one email per address per minute (`max_frequency`). Free-plan projects pause after about a week of inactivity.
+- API.Bible Starter plan (key in `API_BIBLE_KEY`): the 3 licensed Bibles chosen in its dashboard are NIV (2011), NLT and AMP; IDs are in the function's `BIBLES` map. Swapping one means changing the dashboard and both `BIBLES` lists.
 
 ## Testing
 
 No test suite. Verify by hand:
 ```sh
-node --check app.js sync.js sw.js theme-init.js
+node --check app.js sync.js onboarding.js sw.js theme-init.js
 python3 -m http.server 8787   # http://localhost:8787 (also an allowed auth redirect)
 ```
-In the browser: no console errors or CSP violations; today card, catch-up, mark read/undo; reader loads and read-aloud highlights verses; Settings (themes, reading text, start date, share link, import/export); a light and a dark theme; ~390px width. Clear test data afterwards (`localStorage.removeItem('daily-reading:v1')`, `daily-reading:sync`). Don't leave test rows in Supabase.
+In the browser: no console errors or CSP violations; today card, catch-up, mark read/undo; reader loads and read-aloud highlights verses; Settings (themes, reading text, start date, share link, import/export); a light and a dark theme; ~390px width. Getting started only shows for a fresh browser profile (or after clearing `daily-reading:v1`). Clear test data afterwards (`daily-reading:v1`, `daily-reading:sync`, `daily-reading:onboard-step`, `daily-reading:invite`). Don't leave test rows in Supabase.
