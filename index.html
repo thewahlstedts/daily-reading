@@ -126,6 +126,11 @@
     </div>
     <p class="reader-hint" id="reader-hint">Tap a verse to mark it for your group.</p>
     <article id="reader-body" class="scripture"></article>
+    <div class="mark-bar" id="mark-bar" role="status" hidden>
+      <span id="mark-bar-text"></span>
+      <button class="link-btn" id="mark-bar-note" type="button">Add note</button>
+      <button class="link-btn" id="mark-bar-undo" type="button">Undo</button>
+    </div>
     <div class="player">
       <button class="btn ghost" id="mark-btn"></button>
       <div class="player-controls">
@@ -295,6 +300,20 @@
       <span class="spacer"></span>
     </div>
     <div class="review-body" id="review-body"></div>
+  </dialog>
+
+  <!-- Note on a marked verse (or group of verses) -->
+  <dialog id="note-dialog" class="note-dialog" aria-labelledby="note-title">
+    <form id="note-form">
+      <h2 id="note-title">Note</h2>
+      <p class="eyebrow" id="note-ref"></p>
+      <textarea id="note-text" rows="5" maxlength="1000" placeholder="What stood out to you? A question for the group?"></textarea>
+      <small>Leave it empty to remove the note.</small>
+      <div class="row note-actions">
+        <button class="btn ghost" type="button" id="note-cancel">Cancel</button>
+        <button class="btn primary" type="submit">Save</button>
+      </div>
+    </form>
   </dialog>
 
   <!-- Settings -->

@@ -115,6 +115,18 @@ section > h2, .section-head { margin-bottom: 10px; }
 .verse.marked { background: linear-gradient(transparent 55%, var(--highlight) 55%); }
 .verse.marked.speaking { background: var(--highlight); }
 .verse.marked sup::before { content: "★ "; color: var(--accent); }
+.verse.has-note::after { content: "✎"; font-family: var(--sans); font-size: .7em; color: var(--accent); margin: 0 4px 0 -2px; }
+.mark-bar { display: flex; align-items: center; gap: 16px; padding: 8px 16px; border-top: 1px solid var(--line); background: var(--accent-soft); font-size: 14px; }
+.mark-bar[hidden] { display: none; }
+.mark-bar span { flex: 1; color: var(--ink); }
+.mark-bar .link-btn { font-weight: 600; }
+.note-dialog { border: 1px solid var(--line); border-radius: 18px; padding: 0; width: calc(100% - 32px); max-width: 480px; background: var(--surface); color: var(--ink); }
+.note-dialog form { display: flex; flex-direction: column; gap: 10px; padding: 18px; }
+.note-dialog h2 { margin: 0; font: 600 20px/1.2 var(--serif); }
+.note-dialog .eyebrow { margin: -6px 0 0; }
+.note-dialog small { color: var(--muted); font-size: 13px; }
+.note-dialog textarea { font: 16px/1.5 var(--sans); padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); resize: vertical; min-height: 110px; }
+.note-actions { justify-content: flex-end; }
 .reader-hint { margin: 0; padding: 8px 16px; text-align: center; font-size: 13px; color: var(--muted); background: var(--accent-soft); }
 .review-body { flex: 1; overflow-y: auto; padding: 16px 16px 40px; max-width: 680px; width: 100%; margin: 0 auto; }
 .review-group { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; margin-bottom: 16px; overflow: hidden; }
@@ -126,6 +138,9 @@ section > h2, .section-head { margin-bottom: 10px; }
 .review-verse p { margin: 0; font-family: var(--read-font, var(--serif)); font-size: 18px; line-height: 1.6; }
 .review-verse p.muted { font: 14px var(--sans); color: var(--muted); }
 .review-verse .icon-btn { padding: 6px; }
+.review-verse p sup { font: 600 .55em var(--sans); color: var(--accent); margin-right: 3px; }
+.review-note { display: block; width: 100%; margin-top: 8px; padding: 8px 12px; border: 0; border-left: 3px solid var(--accent); border-radius: 0 10px 10px 0; background: var(--accent-soft); color: var(--ink); font: 15px/1.5 var(--sans); text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; cursor: pointer; }
+.review-add-note { margin-top: 4px; font-weight: 600; }
 .review-body .copyright { font: 12px/1.5 var(--sans); color: var(--muted); margin: 8px 4px; }
 .review-body .copyright a { color: var(--accent); }
 .week-nav { display: flex; align-items: center; gap: 2px; }

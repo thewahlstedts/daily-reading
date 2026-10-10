@@ -20,8 +20,9 @@ const defaults = {
   leading: 'normal',
   meetDay: null,       // 0 = Sunday … 6 = Saturday; null = not in a group
   onboarded: false,    // finished (or skipped) the getting-started walkthrough
-  marks: {},           // verses marked for the group: 'PSA.23.1' -> { i: plan index, at: ISO date, t: translation id }
+  marks: {},           // verses marked for the group: 'PSA.23.1' -> { i: plan index, at: ISO date, t: translation id, n?: note }
 };
+const MAX_NOTE = 1000;
 
 function load() {
   try {
@@ -92,7 +93,8 @@ function sanitizeState(raw) {
     s.marks = {};
     for (const [k, v] of Object.entries(raw.marks)) {
       if (/^[1-3A-Z]{3}\.\d{1,3}\.\d{1,3}$/.test(k) && v && Number.isInteger(v.i) && v.i >= 0 && v.i < 1000 && typeof v.at === 'string' && v.at.length <= 32) {
-        s.marks[k] = { i: v.i, at: v.at, ...(TRANSLATIONS.includes(v.t) && { t: v.t }) };
+        const note = typeof v.n === 'string' ? v.n.trim().slice(0, MAX_NOTE) : '';
+        s.marks[k] = { i: v.i, at: v.at, ...(TRANSLATIONS.includes(v.t) && { t: v.t }), ...(note && { n: note }) };
       }
     }
   }
@@ -224,6 +226,73 @@ function marksIn(from = 0, to = Infinity) {
     .sort(([ra, a], [rb, b]) => a.i - b.i || order(ra)[0] - order(rb)[0] || order(ra)[1] - order(rb)[1]);
 }
 
+// Consecutive marked verses around `ref` (same reading, chapter and translation)
+// are shown, noted and unmarked as one group, e.g. 23:2–5.
+function markRun(ref) {
+  const m = state.marks[ref];
+  if (!m) return [];
+  const [b, c, v] = ref.split('.');
+  const same = (n) => { const x = state.marks[`${b}.${c}.${n}`]; return x && x.i === m.i && x.t === m.t; };
+  let lo = +v, hi = +v;
+  while (lo > 1 && same(lo - 1)) lo--;
+  while (same(hi + 1)) hi++;
+  return Array.from({ length: hi - lo + 1 }, (_, k) => `${b}.${c}.${lo + k}`);
+}
+
+function runRange(run) {
+  const [, c, first] = run[0].split('.');
+  const last = run[run.length - 1].split('.')[2];
+  return `${c}:${first}${run.length > 1 ? `–${last}` : ''}`;
+}
+
+const runLabel = (run) => `${plan[state.marks[run[0]].i]?.book ?? ''} ${runRange(run)}`;
+
+// A group's note lives on its first verse; notes from groups that merged are shown together.
+const runNote = (run) => [...new Set(run.map((r) => state.marks[r]?.n).filter(Boolean))].join('\n\n');
+
+function setRunNote(run, text) {
+  const note = text.trim().slice(0, MAX_NOTE);
+  run.forEach((r, k) => {
+    const m = state.marks[r];
+    if (k === 0 && note) m.n = note;
+    else delete m.n;
+  });
+  save();
+}
+
+// Unmarking one verse of a group hands its note to the rest of the group.
+function unmarkVerse(ref) {
+  const m = state.marks[ref];
+  const keep = markRun(ref).find((r) => r !== ref);
+  delete state.marks[ref];
+  if (m?.n && keep) {
+    const k = state.marks[keep];
+    k.n = (k.n ? `${k.n}\n\n${m.n}` : m.n).slice(0, MAX_NOTE);
+  }
+}
+
+const noteDialog = $('#note-dialog');
+let noteRun = null;
+let noteDone = null;
+
+function editNote(ref, onDone) {
+  noteRun = markRun(ref);
+  if (!noteRun.length) return;
+  noteDone = onDone;
+  $('#note-ref').textContent = runLabel(noteRun);
+  $('#note-text').value = runNote(noteRun);
+  noteDialog.showModal();
+  $('#note-text').focus();
+}
+
+$('#note-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (noteRun.every((r) => state.marks[r])) setRunNote(noteRun, $('#note-text').value);
+  noteDialog.close();
+  noteDone?.();
+});
+$('#note-cancel').addEventListener('click', () => noteDialog.close());
+
 const review = $('#review');
 let reviewRange = null; // { from, to, label } or null for all
 
@@ -250,15 +319,19 @@ async function renderReview() {
   }
   body.innerHTML = '<p class="status">Loading…</p>';
 
-  // Group by reading, then load each needed chapter in the current translation.
+  // Group by reading, then by runs of consecutive verses (marks are in reading order).
   const groups = new Map();
+  const seen = new Set();
   marks.forEach(([ref, m]) => {
+    if (seen.has(ref)) return;
+    const run = markRun(ref);
+    run.forEach((r) => seen.add(r));
     if (!groups.has(m.i)) groups.set(m.i, []);
-    groups.get(m.i).push(ref);
+    groups.get(m.i).push(run);
   });
   const frag = document.createDocumentFragment();
   const usedChapters = new Map(); // translation id -> fetched chapters (for notices / FUMS)
-  for (const [i, refs] of groups) {
+  for (const [i, runs] of groups) {
     const item = plan[i];
     if (!item) continue;
     const section = document.createElement('section');
@@ -272,36 +345,53 @@ async function renderReview() {
     head.append(when);
     section.append(head);
 
-    for (const ref of refs) {
-      const [, ch, vn] = ref.split('.').map((x, k) => (k ? Number(x) : x));
+    for (const run of runs) {
+      const ch = Number(run[0].split('.')[1]);
+      const nums = run.map((r) => Number(r.split('.')[2]));
       const row = document.createElement('div');
       row.className = 'review-verse';
       const label = document.createElement('span');
       label.className = 'review-ref';
-      // Show each verse in the translation it was marked in.
-      const b = BIBLES.find((x) => x.id === state.marks[ref].t) || bible();
+      // Show each group in the translation it was marked in.
+      const b = BIBLES.find((x) => x.id === state.marks[run[0]].t) || bible();
       const abbr = b.name.match(/\(([^)]+)\)$/)?.[1] || b.name;
-      label.textContent = `${item.book === 'Psalm' ? 'Ps ' : ''}${ch}:${vn}`;
+      label.textContent = `${item.book === 'Psalm' ? 'Ps ' : ''}${runRange(run)}`;
       const tag = document.createElement('small');
       tag.textContent = abbr;
       label.append(tag);
+      const content = document.createElement('div');
       const text = document.createElement('p');
       try {
         const chapter = await fetchChapter(item.book, ch, b);
-        const { verses } = chapter;
         if (!usedChapters.has(b.id)) usedChapters.set(b.id, []);
         usedChapters.get(b.id).push(chapter);
-        text.textContent = verses.find((v) => v.n === vn)?.text ?? '(verse not found in this translation)';
+        nums.forEach((n) => {
+          const v = chapter.verses.find((x) => x.n === n);
+          if (run.length > 1) {
+            const sup = document.createElement('sup');
+            sup.textContent = n;
+            text.append(sup);
+          }
+          text.append(document.createTextNode(`${v?.text ?? '(verse not found in this translation)'} `));
+        });
       } catch (err) {
         text.textContent = err.signIn ? err.message : `Couldn't load the text (${err.message}).`;
         text.className = 'muted';
       }
+      content.append(text);
+      const note = runNote(run);
+      const noteBtn = document.createElement('button');
+      noteBtn.className = note ? 'review-note' : 'link-btn review-add-note';
+      noteBtn.dataset.note = run[0];
+      noteBtn.textContent = note || '+ Add note';
+      if (note) noteBtn.setAttribute('aria-label', `Edit note: ${note}`);
+      content.append(noteBtn);
       const unmark = document.createElement('button');
       unmark.className = 'icon-btn';
-      unmark.dataset.unmark = ref;
-      unmark.setAttribute('aria-label', `Unmark ${item.book} ${ch}:${vn}`);
+      unmark.dataset.unmark = run.join(' ');
+      unmark.setAttribute('aria-label', `Unmark ${item.book} ${runRange(run)}`);
       unmark.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-      row.append(label, text, unmark);
+      row.append(label, content, unmark);
       section.append(row);
     }
     frag.append(section);
@@ -316,9 +406,14 @@ async function renderReview() {
 }
 
 $('#review-body').addEventListener('click', (e) => {
+  const note = e.target.closest('[data-note]');
+  if (note) {
+    editNote(note.dataset.note, renderReview);
+    return;
+  }
   const un = e.target.closest('[data-unmark]');
   if (un) {
-    delete state.marks[un.dataset.unmark];
+    un.dataset.unmark.split(' ').forEach((r) => delete state.marks[r]);
     save();
     render();
     renderReview();
@@ -719,12 +814,12 @@ async function openReader(index, autoplay) {
         span.append(document.createTextNode(v.text + ' '));
         span.dataset.seg = current.segments.length;
         span.dataset.ref = `${BOOK_CODES[item.book]}.${item.chapters[ci]}.${v.n}`;
-        span.classList.toggle('marked', Boolean(state.marks[span.dataset.ref]));
         current.segments.push({ el: span, ci, n: v.n, speak: v.text.replace(/[⌞⌟]/g, '') });
         p.append(span);
       });
       body.append(p);
     });
+    refreshVerseMarks();
     // Copyrighted translations: show the required notice and links; report licensed views.
     const notice = renderNotice(chapters);
     if (notice) body.append(notice);
@@ -740,6 +835,7 @@ async function openReader(index, autoplay) {
 
 function closeReader() {
   stopSpeech();
+  hideMarkBar();
   current = null;
   reader.close();
 }
@@ -752,11 +848,61 @@ $('#reader-body').addEventListener('click', (e) => {
   const v = e.target.closest('.verse');
   if (!v || !current) return;
   const ref = v.dataset.ref;
-  if (state.marks[ref]) delete state.marks[ref];
+  const before = Object.fromEntries(markRun(ref).map((r) => [r, { ...state.marks[r] }]));
+  if (state.marks[ref]) unmarkVerse(ref);
   else state.marks[ref] = { i: current.index, at: isoDate(new Date()), t: bible().id };
-  v.classList.toggle('marked', Boolean(state.marks[ref]));
   save();
   render();
+  refreshVerseMarks();
+  updateReaderHint();
+  showMarkBar(ref, before);
+});
+
+function refreshVerseMarks() {
+  $('#reader-body').querySelectorAll('.verse').forEach((span) => {
+    const ref = span.dataset.ref;
+    span.classList.toggle('marked', Boolean(state.marks[ref]));
+    span.classList.toggle('has-note', Boolean(state.marks[ref]) && markRun(ref).at(-1) === ref && Boolean(runNote(markRun(ref))));
+  });
+}
+
+// After a tap: offer a note for the group just marked, or undo an unmark.
+let markBarRef = null;
+let markBarUndo = null;
+let markBarTimer;
+
+function showMarkBar(ref, before) {
+  const marked = Boolean(state.marks[ref]);
+  markBarRef = ref;
+  markBarUndo = marked ? null : before;
+  const [, c, n] = ref.split('.');
+  $('#mark-bar-text').textContent = marked ? `Marked ${runRange(markRun(ref))}` : `Unmarked ${c}:${n}`;
+  $('#mark-bar-note').hidden = !marked;
+  $('#mark-bar-note').textContent = marked && runNote(markRun(ref)) ? 'Edit note' : 'Add note';
+  $('#mark-bar-undo').hidden = marked;
+  $('#mark-bar').hidden = false;
+  clearTimeout(markBarTimer);
+  markBarTimer = setTimeout(hideMarkBar, 8000);
+}
+
+function hideMarkBar() {
+  clearTimeout(markBarTimer);
+  $('#mark-bar').hidden = true;
+  markBarUndo = null;
+}
+
+$('#mark-bar-note').addEventListener('click', () => {
+  const ref = markBarRef;
+  hideMarkBar();
+  editNote(ref, () => { render(); refreshVerseMarks(); });
+});
+
+$('#mark-bar-undo').addEventListener('click', () => {
+  if (markBarUndo) Object.assign(state.marks, markBarUndo);
+  hideMarkBar();
+  save();
+  render();
+  refreshVerseMarks();
   updateReaderHint();
 });
 
