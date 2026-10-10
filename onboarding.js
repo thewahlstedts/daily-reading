@@ -1,12 +1,12 @@
 'use strict';
 
 // Getting-started walkthrough for first-time visitors: sign in (optional),
-// meeting day, start date, translation, look, and sharing with the group.
+// meeting day, start date, translation, AI for questions, look, and sharing with the group.
 // Theme and text controls are borrowed from Settings while it's open, so
 // there's one implementation of each.
 
 const OB_STEP_KEY = 'daily-reading:onboard-step';
-const OB_STEPS = ['welcome', 'group', 'start', 'translation', 'look', 'share'];
+const OB_STEPS = ['welcome', 'group', 'start', 'translation', 'ai', 'look', 'share'];
 const onboarding = $('#onboarding');
 let obStep = 0;
 let obFromLink = false;
@@ -77,7 +77,7 @@ function showStep() {
   $('#ob-dots').innerHTML = OB_STEPS.map((_, i) => `<i class="${i === obStep ? 'on' : ''}"></i>`).join('');
   $('#ob-back').hidden = obStep === 0;
   $('#ob-body').scrollTop = 0;
-  ({ welcome: renderWelcome, group: renderGroup, start: renderStart, translation: renderTranslations, look: () => {}, share: renderShare })[name]();
+  ({ welcome: renderWelcome, group: renderGroup, start: renderStart, translation: renderTranslations, ai: renderAiChoices, look: () => {}, share: renderShare })[name]();
   updateNext();
   obSaveStep();
 }
@@ -202,6 +202,24 @@ function renderTranslations() {
       <span class="tags">${escapeHtml(b.name)}${tagFor(b) ? `<small>${tagFor(b)}</small>` : ''}</span>
     </button>`).join('');
 }
+
+function renderAiChoices() {
+  $('#ob-ai').innerHTML = AI_TOOLS
+    .map((t) => `<button type="button" class="ob-option" role="radio" aria-checked="${t.id === state.ai}" data-id="${t.id}">
+      <span class="tags">${t.id === 'none' ? 'No thanks' : t.name}${t.hint ? `<small>${t.hint}</small>` : ''}</span>
+    </button>`).join('');
+  $('#ob-claude-project').hidden = state.ai !== 'claude';
+  $('#ob-claude-project-input').value = state.claudeProject;
+}
+
+$('#ob-ai').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-id]');
+  if (!b) return;
+  state.ai = b.dataset.id;
+  save();
+  renderAiChoices();
+});
+$('#ob-claude-project-input').addEventListener('change', (e) => saveClaudeProject(e.target, $('#ob-claude-project-msg')));
 
 $('#ob-translations').addEventListener('click', (e) => {
   const b = e.target.closest('[data-id]');

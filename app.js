@@ -20,9 +20,20 @@ const defaults = {
   leading: 'normal',
   meetDay: null,       // 0 = Sunday … 6 = Saturday; null = not in a group
   onboarded: false,    // finished (or skipped) the getting-started walkthrough
+  ai: 'claude',        // which AI the "Ask" links open (AI_TOOLS id)
+  claudeProject: '',   // optional claude.ai project link, so Claude questions open inside it
   marks: {},           // verses marked for the group: 'PSA.23.1' -> { i: plan index, at: ISO date, t: translation id, n?: note }
 };
 const MAX_NOTE = 1000;
+// "Ask" links open the person's own AI with the question filled in (their own account).
+const AI_TOOLS = [
+  { id: 'claude', name: 'Claude', url: 'https://claude.ai/new?q=' },
+  { id: 'chatgpt', name: 'ChatGPT', url: 'https://chatgpt.com/?q=' },
+  { id: 'gemini', name: 'Gemini', url: 'https://gemini.google.com/app?q=' },
+  { id: 'google', name: 'Google', url: 'https://www.google.com/search?udm=50&q=', hint: 'AI Mode' },
+  { id: 'none', name: 'Off' },
+];
+const CLAUDE_PROJECT = /^https:\/\/claude\.ai\/project\/[0-9a-f-]{36}$/;
 
 function load() {
   try {
@@ -89,6 +100,8 @@ function sanitizeState(raw) {
   if (Number.isInteger(raw.textSize) && raw.textSize >= 0 && raw.textSize <= 4) s.textSize = raw.textSize;
   if (str(raw.leading, /^[a-z]{1,20}$/)) s.leading = raw.leading;
   if (Number.isInteger(raw.meetDay) && raw.meetDay >= 0 && raw.meetDay <= 6) s.meetDay = raw.meetDay;
+  if (AI_TOOLS.some((t) => t.id === raw.ai)) s.ai = raw.ai;
+  if (typeof raw.claudeProject === 'string' && CLAUDE_PROJECT.test(raw.claudeProject)) s.claudeProject = raw.claudeProject;
   if (raw.marks && typeof raw.marks === 'object') {
     s.marks = {};
     for (const [k, v] of Object.entries(raw.marks)) {
@@ -271,12 +284,23 @@ function unmarkVerse(ref) {
   }
 }
 
-// Opens Claude (web or app) with a question about the group, on the person's own subscription.
+const aiTool = () => AI_TOOLS.find((t) => t.id === state.ai);
+
+// Opens the chosen AI (web or app) with a question about the group, on the person's own account.
 // Only the reference goes in the link, never the text, so licensed translations aren't copied out.
-function askClaudeUrl(run) {
+function askUrl(run) {
+  const tool = aiTool();
+  if (!tool?.url) return null;
   const b = BIBLES.find((x) => x.id === state.marks[run[0]].t) || bible();
   const q = `Help me understand ${runLabel(run)} (${b.name}): its context, what it means, and related passages. I'm reading it with a weekly Bible reading group.`;
-  return `https://claude.ai/new?q=${encodeURIComponent(q)}`;
+  const base = tool.id === 'claude' && state.claudeProject ? `${state.claudeProject}?q=` : tool.url;
+  return base + encodeURIComponent(q);
+}
+
+// Accepts a pasted project link (with or without a trailing slash or query) or returns null.
+function parseClaudeProject(value) {
+  const url = value.trim().replace(/[?#].*$/, '').replace(/\/+$/, '');
+  return CLAUDE_PROJECT.test(url) ? url : null;
 }
 
 const noteDialog = $('#note-dialog');
@@ -393,17 +417,18 @@ async function renderReview() {
       noteBtn.dataset.note = run[0];
       noteBtn.textContent = note || '+ Add note';
       if (note) noteBtn.setAttribute('aria-label', `Edit note: ${note}`);
+      const url = askUrl(run);
       const ask = document.createElement('a');
       ask.className = 'link-btn review-ask';
-      ask.href = askClaudeUrl(run);
       ask.target = '_blank';
       ask.rel = 'noopener';
-      ask.textContent = 'Ask Claude';
-      if (note) content.append(noteBtn, ask);
+      ask.textContent = `Ask ${aiTool().name}`;
+      if (url) ask.href = url;
+      if (note) content.append(noteBtn, ...(url ? [ask] : []));
       else {
         const actions = document.createElement('div');
         actions.className = 'review-actions';
-        actions.append(noteBtn, ask);
+        actions.append(noteBtn, ...(url ? [ask] : []));
         content.append(actions);
       }
       const unmark = document.createElement('button');
@@ -900,8 +925,12 @@ function showMarkBar(ref, before) {
   $('#mark-bar-note').hidden = !marked;
   $('#mark-bar-note').textContent = marked && runNote(markRun(ref)) ? 'Edit note' : 'Add note';
   $('#mark-bar-undo').hidden = marked;
-  $('#mark-bar-ask').hidden = !marked;
-  if (marked) $('#mark-bar-ask').href = askClaudeUrl(markRun(ref));
+  const url = marked && askUrl(markRun(ref));
+  $('#mark-bar-ask').hidden = !url;
+  if (url) {
+    $('#mark-bar-ask').href = url;
+    $('#mark-bar-ask').textContent = `Ask ${aiTool().name}`;
+  }
   $('#mark-bar').hidden = false;
   clearTimeout(markBarTimer);
   markBarTimer = setTimeout(hideMarkBar, 8000);
@@ -1321,6 +1350,7 @@ $('#settings-btn').addEventListener('click', () => {
   $('#set-rate').value = state.rate;
   $('#rate-label').textContent = `${state.rate.toFixed(2)}×`;
   $('#set-automark').checked = state.automark;
+  renderAiSetting();
   applyReadingText();
   loadVoices();
   settings.showModal();
@@ -1359,6 +1389,33 @@ function renderListening() {
     : 'Human narration is available with the Berean Standard Bible';
   $('#voice-row').hidden = useNarration();
 }
+
+$('#set-ai').innerHTML = AI_TOOLS.map((t) => `<option value="${t.id}">${t.name}${t.hint ? ` (${t.hint})` : ''}</option>`).join('');
+
+function renderAiSetting() {
+  $('#set-ai').value = state.ai;
+  $('#claude-project-row').hidden = state.ai !== 'claude';
+  $('#set-claude-project').value = state.claudeProject;
+  $('#claude-project-msg').hidden = true;
+}
+
+$('#set-ai').addEventListener('change', (e) => { state.ai = e.target.value; save(); renderAiSetting(); });
+
+// Shared by Settings and onboarding: saves a pasted project link, or explains why it can't.
+function saveClaudeProject(input, msg) {
+  const value = input.value.trim();
+  const url = value ? parseClaudeProject(value) : '';
+  msg.hidden = url !== null;
+  if (url === null) {
+    msg.textContent = 'That doesn\'t look like a Claude project link. Open the project in Claude and copy the address (claude.ai/project/…).';
+    return;
+  }
+  state.claudeProject = url;
+  input.value = url;
+  save();
+}
+
+$('#set-claude-project').addEventListener('change', (e) => saveClaudeProject(e.target, $('#claude-project-msg')));
 
 $('#set-translation').addEventListener('change', (e) => { state.translation = e.target.value; save(); renderListening(); prefetchBundledBible(); });
 $('#set-narrator').addEventListener('change', (e) => { state.narrator = e.target.value; save(); renderListening(); });
