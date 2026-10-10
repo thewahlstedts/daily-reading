@@ -208,8 +208,6 @@ function renderAiChoices() {
     .map((t) => `<button type="button" class="ob-option" role="radio" aria-checked="${t.id === state.ai}" data-id="${t.id}">
       <span class="tags">${t.id === 'none' ? 'No thanks' : t.name}${t.hint ? `<small>${t.hint}</small>` : ''}</span>
     </button>`).join('');
-  $('#ob-claude-project').hidden = state.ai !== 'claude';
-  $('#ob-claude-project-input').value = state.claudeProject;
 }
 
 $('#ob-ai').addEventListener('click', (e) => {
@@ -219,7 +217,6 @@ $('#ob-ai').addEventListener('click', (e) => {
   save();
   renderAiChoices();
 });
-$('#ob-claude-project-input').addEventListener('change', (e) => saveClaudeProject(e.target, $('#ob-claude-project-msg')));
 
 $('#ob-translations').addEventListener('click', (e) => {
   const b = e.target.closest('[data-id]');

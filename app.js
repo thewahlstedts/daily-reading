@@ -21,7 +21,6 @@ const defaults = {
   meetDay: null,       // 0 = Sunday … 6 = Saturday; null = not in a group
   onboarded: false,    // finished (or skipped) the getting-started walkthrough
   ai: 'claude',        // which AI the "Ask" links open (AI_TOOLS id)
-  claudeProject: '',   // optional Claude project id; Claude links then open it in the Claude app
   marks: {},           // verses marked for the group: 'PSA.23.1' -> { i: plan index, at: ISO date, t: translation id, n?: note }
 };
 const MAX_NOTE = 1000;
@@ -33,7 +32,6 @@ const AI_TOOLS = [
   { id: 'google', name: 'Google', url: 'https://www.google.com/search?udm=50&q=', hint: 'AI Mode' },
   { id: 'none', name: 'Off' },
 ];
-const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
 function load() {
   try {
@@ -101,7 +99,6 @@ function sanitizeState(raw) {
   if (str(raw.leading, /^[a-z]{1,20}$/)) s.leading = raw.leading;
   if (Number.isInteger(raw.meetDay) && raw.meetDay >= 0 && raw.meetDay <= 6) s.meetDay = raw.meetDay;
   if (AI_TOOLS.some((t) => t.id === raw.ai)) s.ai = raw.ai;
-  if (typeof raw.claudeProject === 'string' && new RegExp(`^${UUID.source}$`, 'i').test(raw.claudeProject)) s.claudeProject = raw.claudeProject.toLowerCase();
   if (raw.marks && typeof raw.marks === 'object') {
     s.marks = {};
     for (const [k, v] of Object.entries(raw.marks)) {
@@ -288,54 +285,12 @@ const aiTool = () => AI_TOOLS.find((t) => t.id === state.ai);
 
 // Opens the chosen AI (web or app) with a question about the group, on the person's own account.
 // Only the reference goes in the link, never the text, so licensed translations aren't copied out.
-function askQuestion(run) {
-  const b = BIBLES.find((x) => x.id === state.marks[run[0]].t) || bible();
-  return `Help me understand ${runLabel(run)} (${b.name}): its context, what it means, and related passages. I'm reading it with a weekly Bible reading group.`;
-}
-
-// claude.ai/project links don't open the iOS app, but the app's own claude:// scheme does.
-// It opens the project without starting a chat, so the question is copied to paste instead.
-const useClaudeProject = () => state.ai === 'claude' && Boolean(state.claudeProject);
-
 function askUrl(run) {
   const tool = aiTool();
   if (!tool?.url) return null;
-  if (useClaudeProject()) return `claude://claude.ai/project/${state.claudeProject}`;
-  return tool.url + encodeURIComponent(askQuestion(run));
-}
-
-// Points an Ask link at the group's question; app links (claude://) open in place rather than in a blank tab.
-function setAskLink(a, run) {
-  a.href = askUrl(run);
-  a.textContent = useClaudeProject() ? 'Copy & ask Claude' : `Ask ${aiTool().name}`;
-  if (useClaudeProject()) {
-    a.removeAttribute('target');
-    a.dataset.copy = askQuestion(run);
-  } else {
-    a.target = '_blank';
-    a.rel = 'noopener';
-    delete a.dataset.copy;
-  }
-}
-
-// Copy before the link opens the app (clipboard writes need the tap's user gesture).
-document.addEventListener('click', (e) => {
-  const a = e.target.closest('a[data-copy]');
-  if (a) navigator.clipboard?.writeText(a.dataset.copy).catch(() => {});
-});
-
-// Shared by Settings and onboarding: accepts a project id, or a pasted project link containing one.
-function saveClaudeProject(input, msg) {
-  const value = input.value.trim();
-  const id = value ? value.match(UUID)?.[0].toLowerCase() : '';
-  msg.hidden = id !== undefined;
-  if (id === undefined) {
-    msg.textContent = "That isn't a project id. Open the project in Claude; the id is the last part of its link (claude.ai/project/…).";
-    return;
-  }
-  state.claudeProject = id;
-  input.value = id;
-  save();
+  const b = BIBLES.find((x) => x.id === state.marks[run[0]].t) || bible();
+  const q = `Help me understand ${runLabel(run)} (${b.name}): its context, what it means, and related passages. I'm reading it with a weekly Bible reading group.`;
+  return tool.url + encodeURIComponent(q);
 }
 
 const noteDialog = $('#note-dialog');
@@ -455,7 +410,10 @@ async function renderReview() {
       const url = askUrl(run);
       const ask = document.createElement('a');
       ask.className = 'link-btn review-ask';
-      if (url) setAskLink(ask, run);
+      ask.target = '_blank';
+      ask.rel = 'noopener';
+      ask.textContent = `Ask ${aiTool().name}`;
+      if (url) ask.href = url;
       if (note) content.append(noteBtn, ...(url ? [ask] : []));
       else {
         const actions = document.createElement('div');
@@ -960,7 +918,8 @@ function showMarkBar(ref, before) {
   const url = marked && askUrl(markRun(ref));
   $('#mark-bar-ask').hidden = !url;
   if (url) {
-    setAskLink($('#mark-bar-ask'), markRun(ref));
+    $('#mark-bar-ask').href = url;
+    $('#mark-bar-ask').textContent = `Ask ${aiTool().name}`;
   }
   $('#mark-bar').hidden = false;
   clearTimeout(markBarTimer);
@@ -1425,12 +1384,7 @@ $('#set-ai').innerHTML = AI_TOOLS.map((t) => `<option value="${t.id}">${t.name}$
 
 function renderAiSetting() {
   $('#set-ai').value = state.ai;
-  $('#claude-project-row').hidden = state.ai !== 'claude';
-  $('#set-claude-project').value = state.claudeProject;
-  $('#claude-project-msg').hidden = true;
 }
-
-$('#set-claude-project').addEventListener('change', (e) => saveClaudeProject(e.target, $('#claude-project-msg')));
 
 $('#set-ai').addEventListener('change', (e) => { state.ai = e.target.value; save(); renderAiSetting(); });
 
