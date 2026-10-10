@@ -230,9 +230,19 @@ secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
 max_frequency = "1m0s"
 # Number of characters used in the email OTP.
-otp_length = 8
+otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
+
+# Sign-in emails include both the code (typed into the app) and the link.
+# Existing users get magic_link; first-time sign-ups get confirmation.
+[auth.email.template.magic_link]
+subject = "Your Daily Reading sign-in code"
+content_path = "./supabase/templates/sign-in.html"
+
+[auth.email.template.confirmation]
+subject = "Your Daily Reading sign-in code"
+content_path = "./supabase/templates/sign-in.html"
 
 # Use a production-ready SMTP server
 # [auth.email.smtp]

@@ -166,16 +166,16 @@
         </div>
         <div class="ob-card" id="ob-signin">
           <p class="set-name">Sync across your devices</p>
-          <small>Sign in with your email to keep your progress on your phone, tablet and computer. No password needed.</small>
+          <small>Sign in with your email to keep your progress on your phone, tablet and computer. We'll email you a code; no password needed.</small>
           <div class="row nowrap">
             <input type="email" id="ob-email" placeholder="you@example.com" autocomplete="email" inputmode="email">
-            <button class="btn primary" id="ob-send" type="button">Email me a link</button>
+            <button class="btn primary" id="ob-send" type="button">Email me a code</button>
           </div>
           <div id="ob-paste" hidden>
-            <small>Using the home-screen app on iPhone? Long-press the link in the email, choose Copy, and paste it here:</small>
+            <small>Enter the 6-digit code from the email:</small>
             <div class="row nowrap">
-              <input type="url" id="ob-link" placeholder="Paste sign-in link">
-              <button class="btn ghost" id="ob-paste-btn" type="button">Sign in</button>
+              <input type="text" id="ob-code" class="code-input" placeholder="123456" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*">
+              <button class="btn primary" id="ob-code-btn" type="button">Sign in</button>
             </div>
           </div>
           <small class="sync-message" id="ob-msg" hidden></small>
@@ -260,13 +260,13 @@
           <div class="set-row stacked" id="sync-signed-out">
             <div class="row nowrap">
               <input type="email" id="sync-email-input" placeholder="you@example.com" autocomplete="email" inputmode="email">
-              <button class="btn primary" id="sync-send" type="button">Email me a link</button>
+              <button class="btn primary" id="sync-send" type="button">Email me a code</button>
             </div>
             <div id="sync-paste" hidden>
-              <small>Using the home-screen app on iPhone? Tapping the link signs in Safari instead. Long-press the link in the email, choose Copy, and paste it here:</small>
+              <small>Enter the 6-digit code from the email (works anywhere, including the iPhone home-screen app):</small>
               <div class="row nowrap">
-                <input type="url" id="sync-link-input" placeholder="Paste sign-in link">
-                <button class="btn ghost" id="sync-paste-btn" type="button">Sign in</button>
+                <input type="text" id="sync-code-input" class="code-input" placeholder="123456" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*">
+                <button class="btn primary" id="sync-code-btn" type="button">Sign in</button>
               </div>
             </div>
             <small class="sync-message" id="sync-message" hidden></small>

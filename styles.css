@@ -306,3 +306,5 @@ dialog::backdrop { background: rgba(0,0,0,.3); }
 @media (prefers-reduced-motion: reduce) { .ob-celebrate { animation: none; } }
 .ob-invite { border-color: var(--accent); background: var(--accent-soft); }
 .ob-invite .ob-fact-icon { background: var(--surface); }
+
+.code-input { font-family: 'SF Mono', Menlo, Consolas, monospace !important; letter-spacing: .3em; font-size: 20px !important; text-align: center; }

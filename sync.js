@@ -172,17 +172,13 @@ window.sendSignInLink = async (email) => {
   return error ? error.message : null;
 };
 
-// Home-screen apps on iPhone don't share storage with Safari, so tapping the
-// emailed link signs Safari in, not the app. Pasting the link here works anywhere.
-window.signInWithPastedLink = async (raw) => {
+// Sign in with the 6-digit code from the email (same email the code was sent to).
+window.signInWithCode = async (email, code) => {
   if (!sb) return 'Sync is unavailable right now.';
-  let url;
-  try { url = new URL(raw.trim()); } catch { return "That doesn't look like the sign-in link."; }
-  const tokenHash = url.searchParams.get('token') || url.searchParams.get('token_hash');
-  const type = url.searchParams.get('type') || 'magiclink';
-  if (!tokenHash) return 'That link is missing its sign-in code. Copy the whole link from the email.';
-  const { error } = await sb.auth.verifyOtp({ token_hash: tokenHash, type });
-  return error ? `${error.message}. Request a new link and try again.` : null;
+  const token = String(code).replace(/\D/g, '');
+  if (token.length !== 6) return 'Enter the 6-digit code from the email.';
+  const { error } = await sb.auth.verifyOtp({ email, token, type: 'email' });
+  return error ? "That code didn't work. Check it, or request a new code (codes expire after an hour)." : null;
 };
 
 window.currentUserEmail = () => user?.email ?? null;
@@ -193,16 +189,19 @@ $('#sync-send').addEventListener('click', async () => {
   const error = await window.sendSignInLink(email);
   $('#sync-send').disabled = false;
   if (error) return setMessage(error, true);
-  setMessage(`Sign-in link sent to ${email}. Open it on this device.`);
+  setMessage(`We emailed a code to ${email}.`);
   $('#sync-paste').hidden = false;
+  $('#sync-code-input').focus();
 });
 
-$('#sync-paste-btn').addEventListener('click', async () => {
-  const error = await window.signInWithPastedLink($('#sync-link-input').value);
+async function submitCode() {
+  const error = await window.signInWithCode($('#sync-email-input').value.trim(), $('#sync-code-input').value);
   if (error) return setMessage(error, true);
-  $('#sync-link-input').value = '';
+  $('#sync-code-input').value = '';
   setMessage('');
-});
+}
+$('#sync-code-btn').addEventListener('click', submitCode);
+$('#sync-code-input').addEventListener('input', (e) => { if (e.target.value.replace(/\D/g, '').length === 6) submitCode(); });
 
 $('#sync-now').addEventListener('click', async () => {
   setStatus('Syncing…');

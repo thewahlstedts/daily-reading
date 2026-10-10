@@ -235,16 +235,19 @@ $('#ob-send').addEventListener('click', async () => {
   const error = await window.sendSignInLink(email);
   $('#ob-send').disabled = false;
   if (error) return obMessage(error, true);
-  obMessage(`Link sent to ${email}. Open it on this device; you'll come right back here.`);
+  obMessage(`We emailed a code to ${email}. Enter it below, or tap the link in the email on this device.`);
   $('#ob-paste').hidden = false;
+  $('#ob-code').focus();
 });
 
-$('#ob-paste-btn').addEventListener('click', async () => {
-  const error = await window.signInWithPastedLink($('#ob-link').value);
+async function obSubmitCode() {
+  const error = await window.signInWithCode($('#ob-email').value.trim(), $('#ob-code').value);
   if (error) return obMessage(error, true);
-  $('#ob-link').value = '';
+  $('#ob-code').value = '';
   obMessage('');
-});
+}
+$('#ob-code-btn').addEventListener('click', obSubmitCode);
+$('#ob-code').addEventListener('input', (e) => { if (e.target.value.replace(/\D/g, '').length === 6) obSubmitCode(); });
 
 // Called by sync.js whenever the session changes.
 window.onAuthChanged = () => {
