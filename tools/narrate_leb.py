@@ -115,9 +115,12 @@ def main():
         at = sum(len(p) for p in parts)
         starts = []
         for n, text in verses:
-            if n != len(starts) + 1:
-                sys.exit(f'{code} {c}: expected verse {len(starts) + 1}, found {n}')
-            starts.append(round(at / RATE, 2))
+            if n <= len(starts):
+                sys.exit(f'{code} {c}: verse {n} is out of order')
+            # Verses the LEB omits (e.g. Luke 17:36) share the next verse's start, so
+            # starts[n - 1] stays verse n's time, as the app expects.
+            while len(starts) < n:
+                starts.append(round(at / RATE, 2))
             clip = speak(clean(text))
             parts += [clip, silence(VERSE_PAUSE)]
             at += len(clip) + int(RATE * VERSE_PAUSE)
