@@ -219,7 +219,7 @@
         <div class="ob-options" id="ob-ai" role="radiogroup" aria-label="AI"></div>
         <div class="ob-card" id="ob-claude-project">
           <label class="set-name" for="ob-claude-project-input">Claude project id (optional)</label>
-          <small>Questions open in this project in the Claude app. The id is the last part of the project's link. You can add it later in Settings.</small>
+          <small>Opens this project in the Claude app with the question copied, ready to paste into a new chat. The id is the last part of the project's link. You can add it later in Settings.</small>
           <input type="text" id="ob-claude-project-input" class="text-input" placeholder="e.g. 0199a1b2-c3d4-…" autocomplete="off" autocapitalize="off" spellcheck="false">
           <small class="sync-message error" id="ob-claude-project-msg" hidden></small>
         </div>
@@ -403,7 +403,7 @@
             <select id="set-ai"></select>
           </label>
           <div class="set-row stacked" id="claude-project-row">
-            <label class="set-text" for="set-claude-project"><span class="set-name">Claude project id</span><small>Optional. Questions open in this project in the Claude app (the app must be installed). The id is the last part of the project's link.</small></label>
+            <label class="set-text" for="set-claude-project"><span class="set-name">Claude project id</span><small>Optional. Opens this project in the Claude app (it must be installed) with the question copied: start a new chat and paste. The id is the last part of the project's link.</small></label>
             <input type="text" id="set-claude-project" class="text-input" placeholder="e.g. 0199a1b2-c3d4-…" autocomplete="off" autocapitalize="off" spellcheck="false">
             <small class="sync-message error" id="claude-project-msg" hidden></small>
           </div>

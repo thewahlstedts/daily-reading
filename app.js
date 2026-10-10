@@ -288,26 +288,41 @@ const aiTool = () => AI_TOOLS.find((t) => t.id === state.ai);
 
 // Opens the chosen AI (web or app) with a question about the group, on the person's own account.
 // Only the reference goes in the link, never the text, so licensed translations aren't copied out.
+function askQuestion(run) {
+  const b = BIBLES.find((x) => x.id === state.marks[run[0]].t) || bible();
+  return `Help me understand ${runLabel(run)} (${b.name}): its context, what it means, and related passages. I'm reading it with a weekly Bible reading group.`;
+}
+
+// claude.ai/project links don't open the iOS app, but the app's own claude:// scheme does.
+// It opens the project without starting a chat, so the question is copied to paste instead.
+const useClaudeProject = () => state.ai === 'claude' && Boolean(state.claudeProject);
+
 function askUrl(run) {
   const tool = aiTool();
   if (!tool?.url) return null;
-  const b = BIBLES.find((x) => x.id === state.marks[run[0]].t) || bible();
-  const q = `Help me understand ${runLabel(run)} (${b.name}): its context, what it means, and related passages. I'm reading it with a weekly Bible reading group.`;
-  // claude.ai/project links don't open the iOS app, but the app's own claude:// scheme does.
-  const base = tool.id === 'claude' && state.claudeProject ? `claude://claude.ai/project/${state.claudeProject}?q=` : tool.url;
-  return base + encodeURIComponent(q);
+  if (useClaudeProject()) return `claude://claude.ai/project/${state.claudeProject}`;
+  return tool.url + encodeURIComponent(askQuestion(run));
 }
 
-// Points an Ask link at `url`; app links (claude://) open in place rather than in a blank tab.
-function setAskLink(a, url) {
-  a.href = url;
-  if (url.startsWith('https:')) {
+// Points an Ask link at the group's question; app links (claude://) open in place rather than in a blank tab.
+function setAskLink(a, run) {
+  a.href = askUrl(run);
+  a.textContent = useClaudeProject() ? 'Copy & ask Claude' : `Ask ${aiTool().name}`;
+  if (useClaudeProject()) {
+    a.removeAttribute('target');
+    a.dataset.copy = askQuestion(run);
+  } else {
     a.target = '_blank';
     a.rel = 'noopener';
-  } else {
-    a.removeAttribute('target');
+    delete a.dataset.copy;
   }
 }
+
+// Copy before the link opens the app (clipboard writes need the tap's user gesture).
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a[data-copy]');
+  if (a) navigator.clipboard?.writeText(a.dataset.copy).catch(() => {});
+});
 
 // Shared by Settings and onboarding: accepts a project id, or a pasted project link containing one.
 function saveClaudeProject(input, msg) {
@@ -440,8 +455,7 @@ async function renderReview() {
       const url = askUrl(run);
       const ask = document.createElement('a');
       ask.className = 'link-btn review-ask';
-      ask.textContent = `Ask ${aiTool().name}`;
-      if (url) setAskLink(ask, url);
+      if (url) setAskLink(ask, run);
       if (note) content.append(noteBtn, ...(url ? [ask] : []));
       else {
         const actions = document.createElement('div');
@@ -946,8 +960,7 @@ function showMarkBar(ref, before) {
   const url = marked && askUrl(markRun(ref));
   $('#mark-bar-ask').hidden = !url;
   if (url) {
-    setAskLink($('#mark-bar-ask'), url);
-    $('#mark-bar-ask').textContent = `Ask ${aiTool().name}`;
+    setAskLink($('#mark-bar-ask'), markRun(ref));
   }
   $('#mark-bar').hidden = false;
   clearTimeout(markBarTimer);
