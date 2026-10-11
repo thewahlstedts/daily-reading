@@ -18,6 +18,7 @@ const defaults = {
   font: 'classic',
   textSize: 2,         // index into SIZES
   leading: 'normal',
+  align: 'left',
   meetDay: null,       // 0 = Sunday … 6 = Saturday; null = not in a group
   onboarded: false,    // finished (or skipped) the getting-started walkthrough
   ai: 'claude',        // which AI the "Ask" links open (AI_TOOLS id)
@@ -97,6 +98,7 @@ function sanitizeState(raw) {
   if (str(raw.font, /^[a-z-]{1,20}$/)) s.font = raw.font;
   if (Number.isInteger(raw.textSize) && raw.textSize >= 0 && raw.textSize <= 4) s.textSize = raw.textSize;
   if (str(raw.leading, /^[a-z]{1,20}$/)) s.leading = raw.leading;
+  if (str(raw.align, /^[a-z]{1,20}$/)) s.align = raw.align;
   if (Number.isInteger(raw.meetDay) && raw.meetDay >= 0 && raw.meetDay <= 6) s.meetDay = raw.meetDay;
   if (AI_TOOLS.some((t) => t.id === raw.ai)) s.ai = raw.ai;
   if (raw.marks && typeof raw.marks === 'object') {
@@ -1294,6 +1296,11 @@ const LEADINGS = [
   { id: 'relaxed', name: 'Relaxed', value: 2, gap: 6 },
 ];
 
+const ALIGNS = [
+  { id: 'left', name: 'Left' },
+  { id: 'justify', name: 'Justified' },
+];
+
 const segBtn = (value, inner, label) =>
   `<button type="button" class="seg" role="radio" data-value="${value}"${label ? ` aria-label="${label}"` : ''}>${inner}</button>`;
 
@@ -1306,11 +1313,15 @@ $('#size-picker').innerHTML = SIZES.map((s, i) =>
 $('#leading-picker').innerHTML = LEADINGS.map((l) =>
   segBtn(l.id, `<span class="lines" style="gap:${l.gap}px"><i></i><i></i><i></i></span>${l.name}`)).join('');
 
+$('#align-picker').innerHTML = ALIGNS.map((a) =>
+  segBtn(a.id, `<span class="lines align-${a.id}"><i></i><i></i><i></i></span>${a.name}`)).join('');
+
 function readingText() {
   return {
     font: FONTS.find((f) => f.id === state.font) ?? FONTS[0],
     size: SIZES[state.textSize] ?? SIZES[2],
     leading: LEADINGS.find((l) => l.id === state.leading) ?? LEADINGS[1],
+    align: ALIGNS.find((a) => a.id === state.align) ?? ALIGNS[0],
   };
 }
 
@@ -1319,14 +1330,18 @@ function setChecked(picker, value) {
 }
 
 function applyReadingText() {
-  const { font, size, leading } = readingText();
+  const { font, size, leading, align } = readingText();
   const style = document.documentElement.style;
   style.setProperty('--read-font', font.stack);
   style.setProperty('--read-size', `${size.px}px`);
   style.setProperty('--read-leading', leading.value);
+  style.setProperty('--read-align', align.id);
+  // Justified text needs hyphenation, or narrow phone columns get wide gaps between words.
+  style.setProperty('--read-hyphens', align.id === 'justify' ? 'auto' : 'manual');
   setChecked('#font-picker', font.id);
   setChecked('#size-picker', SIZES.indexOf(size));
   setChecked('#leading-picker', leading.id);
+  setChecked('#align-picker', align.id);
 }
 
 function onPick(picker, update) {
@@ -1342,6 +1357,7 @@ function onPick(picker, update) {
 onPick('#font-picker', (v) => { state.font = v; });
 onPick('#size-picker', (v) => { state.textSize = +v; });
 onPick('#leading-picker', (v) => { state.leading = v; });
+onPick('#align-picker', (v) => { state.align = v; });
 
 applyReadingText();
 
