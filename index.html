@@ -90,16 +90,9 @@
       <ul class="list" id="behind-list"></ul>
     </section>
 
-    <section>
-      <div class="section-head">
-        <h2 id="plan-heading">Up next</h2>
-        <div class="row">
-          <button class="link-btn" id="jump-btn" hidden>Jump to today</button>
-          <button class="link-btn" id="more-btn"></button>
-          <button class="link-btn" id="completed-btn"></button>
-        </div>
-      </div>
-      <div id="plan-list"></div>
+    <section id="upnext" hidden>
+      <h2>Up next</h2>
+      <ul class="list" id="upnext-list"></ul>
     </section>
   </main>
 
@@ -290,6 +283,24 @@
     </div>
   </dialog>
 
+  <!-- Full plan (from Settings) -->
+  <dialog id="plan" tabindex="-1" class="sheet">
+    <div class="sheet-head">
+      <button class="icon-btn" id="plan-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="sheet-title"><h2>Full plan</h2></div>
+      <span class="spacer"></span>
+    </div>
+    <div class="plan-body">
+      <div class="row plan-tools">
+        <button class="link-btn" id="jump-btn" type="button">Jump to today</button>
+        <button class="link-btn" id="completed-btn" type="button"></button>
+      </div>
+      <div id="plan-list"></div>
+    </div>
+  </dialog>
+
   <!-- Marked verses for group review -->
   <dialog id="review" tabindex="-1" class="sheet">
     <div class="sheet-head">
@@ -370,6 +381,10 @@
             <span class="set-text"><span class="set-name">Share with your group</span><small id="share-summary"></small></span>
             <button class="btn ghost" id="share-btn-settings" type="button">Share plan</button>
           </div>
+          <button class="set-row set-link" id="full-plan-btn" type="button">
+            <span class="set-text"><span class="set-name">Full plan</span><small id="full-plan-status"></small></span>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
         </div>
       </section>
 
