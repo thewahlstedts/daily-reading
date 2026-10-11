@@ -434,3 +434,8 @@ entrypoint = "./functions/scripture/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/scripture/*.html" ]
+
+[functions.remind]
+enabled = true
+verify_jwt = false # called by pg_cron with its own secret (x-cron-secret), not a user JWT
+entrypoint = "./functions/remind/index.ts"

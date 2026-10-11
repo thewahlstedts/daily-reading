@@ -8,6 +8,7 @@ A small installable web app for a one-year Bible reading plan: shows today's rea
 - **Audio:** human narration for the BSB (online only), otherwise the device's built-in text-to-speech voices.
 - **Group weeks:** set the day your group meets (Settings) and the home page shows that week's readings, from the day after one meeting through the next.
 - **Sharing:** Settings → Share sends a link like `?start=2026-09-01&meet=2` so others follow the same schedule. New visitors adopt it automatically; anyone with their own start date is asked first.
+- **Daily reminder:** Settings → Reminder sends a notification at a chosen time naming the day's reading (skipped once you're caught up). Needs sign-in; on iPhone, add the app to the Home Screen first.
 - **Progress:** stored in the browser on each device. Optionally sign in (Settings → Sync across devices) to sync it via Supabase, or use Export/Import.
 - **Security:** see [SECURITY.md](SECURITY.md). Contributor notes are in [CLAUDE.md](CLAUDE.md).
 
