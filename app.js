@@ -461,10 +461,7 @@ $('#review-body').addEventListener('click', (e) => {
   }
   const un = e.target.closest('[data-unmark]');
   if (un) {
-    un.dataset.unmark.split(' ').forEach((r) => delete state.marks[r]);
-    save();
-    render();
-    renderReview();
+    confirmUnmark(un.dataset.unmark.split(' '));
     return;
   }
   const open = e.target.closest('[data-open]');
@@ -474,6 +471,64 @@ $('#review-body').addEventListener('click', (e) => {
     openReader(+open.dataset.open, false);
   }
 });
+
+// Unmarking from the review asks first, then offers a short window to undo.
+const unmarkDialog = $('#unmark-dialog');
+let unmarkRefs = null;
+
+function confirmUnmark(refs) {
+  unmarkRefs = refs.filter((r) => state.marks[r]);
+  if (!unmarkRefs.length) return;
+  $('#unmark-title').textContent = unmarkRefs.length > 1 ? 'Unmark these verses?' : 'Unmark this verse?';
+  $('#unmark-ref').textContent = runLabel(unmarkRefs);
+  $('#unmark-note').hidden = !runNote(unmarkRefs);
+  unmarkDialog.showModal();
+}
+
+$('#unmark-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  unmarkDialog.close();
+  const refs = unmarkRefs.filter((r) => state.marks[r]);
+  if (!refs.length) return;
+  const label = runLabel(refs);
+  const before = Object.fromEntries(refs.map((r) => [r, state.marks[r]]));
+  refs.forEach((r) => delete state.marks[r]);
+  save();
+  render();
+  renderReview();
+  showReviewToast(`Unmarked ${label}`, () => {
+    Object.assign(state.marks, before);
+    save();
+    render();
+    renderReview();
+  });
+});
+$('#unmark-cancel').addEventListener('click', () => unmarkDialog.close());
+
+// The review is a modal sheet, so the page toast would sit behind it; it has its own.
+let reviewUndo = null;
+let reviewToastTimer;
+
+function showReviewToast(text, undo) {
+  $('#review-toast-text').textContent = text;
+  reviewUndo = undo;
+  $('#review-toast').hidden = false;
+  clearTimeout(reviewToastTimer);
+  reviewToastTimer = setTimeout(hideReviewToast, 3000);
+}
+
+function hideReviewToast() {
+  clearTimeout(reviewToastTimer);
+  $('#review-toast').hidden = true;
+  reviewUndo = null;
+}
+
+$('#review-toast-undo').addEventListener('click', () => {
+  const undo = reviewUndo;
+  hideReviewToast();
+  undo?.();
+});
+review.addEventListener('close', hideReviewToast);
 
 $('#week-prev').addEventListener('click', () => { weekOffset--; render(); });
 $('#week-next').addEventListener('click', () => { weekOffset++; render(); });
