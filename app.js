@@ -1044,6 +1044,7 @@ function renderVerses(body, verses, chapterRef, ci, chapterSeg) {
 function closeReader() {
   stopSpeech();
   hideMarkBar();
+  if (commentary.open) commentary.close();
   current = null;
   reader.close();
 }
@@ -1120,6 +1121,128 @@ $('#mark-bar-undo').addEventListener('click', () => {
   refreshVerseMarks();
   updateReaderHint();
 });
+
+// ---------- Commentary ----------
+
+// Tyndale Open Study Notes (CC BY-SA 4.0) from the Free Use Bible API. Each note is
+// filed under the verse it starts at, so one running on from the previous chapter
+// shows with that chapter.
+const commentaryCache = new Map();
+let commentaryGen = 0;
+
+async function fetchCommentary(book, chapter) {
+  const code = BOOK_CODES[book];
+  const key = `${code}|${chapter}`;
+  if (commentaryCache.has(key)) return commentaryCache.get(key);
+  const res = await fetch(`${HELLOAO}c/tyndale/${code}/${chapter}.json`);
+  // Not every chapter has notes.
+  if (res.status === 404) return { intro: '', notes: [] };
+  if (!res.ok) throw new Error(`Couldn't load the commentary (${res.status})`);
+  const data = await res.json();
+  const notes = [];
+  if (typeof data.chapter?.introduction === 'string' && data.chapter.introduction.trim()) {
+    notes.push(data.chapter.introduction.trim());
+  }
+  for (const v of Array.isArray(data.chapter?.content) ? data.chapter.content : []) {
+    if (v?.type !== 'verse' || !Array.isArray(v.content)) continue;
+    v.content.forEach((c) => { if (typeof c === 'string' && c.trim()) notes.push(c.trim()); });
+  }
+  const intro = typeof data.book?.introductionSummary === 'string' ? data.book.introductionSummary.trim() : '';
+  const result = { intro, notes };
+  commentaryCache.set(key, result);
+  return result;
+}
+
+// A note is paragraphs separated by newlines; the first starts with the passage it covers
+// ("1:1–2:3 These verses…"), shown as a label. Built with DOM nodes (API text is untrusted).
+function commentaryNote(text) {
+  const div = document.createElement('div');
+  div.className = 'comm-note';
+  text.split('\n').filter((t) => t.trim()).forEach((para, k) => {
+    const p = document.createElement('p');
+    const ref = k === 0 && para.match(/^(\d+:\d+(?:[–-]\d+(?::\d+)?)?)\s+/);
+    if (ref) {
+      const label = document.createElement('strong');
+      label.className = 'comm-ref';
+      label.textContent = ref[1];
+      p.append(label, ' ', para.slice(ref[0].length));
+    } else {
+      p.textContent = para;
+    }
+    div.append(p);
+  });
+  return div;
+}
+
+function commentaryNotice() {
+  const p = document.createElement('p');
+  p.className = 'copyright';
+  const link = (text, href) => Object.assign(document.createElement('a'), { textContent: text, href, target: '_blank', rel: 'noopener' });
+  p.append(
+    'From the ', link('Tyndale Open Study Notes', 'https://tyndaleopenresources.com/'),
+    ' by Tyndale House Publishers, licensed under ', link('CC BY-SA 4.0', 'https://creativecommons.org/licenses/by-sa/4.0/'),
+    '; formatted for this app. Served by the ', link('Free Use Bible API', 'https://bible.helloao.org'), '. ',
+  );
+  const credits = document.createElement('a');
+  credits.href = 'copyright.html';
+  credits.textContent = 'Copyright & credits';
+  p.append(credits);
+  return p;
+}
+
+async function openCommentary() {
+  if (!current) return;
+  const item = plan[current.index];
+  const gen = ++commentaryGen;
+  $('#commentary-sub').textContent = item.ref;
+  const body = $('#commentary-body');
+  body.innerHTML = '<p class="status">Loading…</p>';
+  body.scrollTop = 0;
+  openSheet(commentary);
+  try {
+    const chapters = await Promise.all(item.chapters.map((c) => fetchCommentary(item.book, c)));
+    if (gen !== commentaryGen || !commentary.open) return;
+    body.replaceChildren();
+    const intro = chapters.find((ch) => ch.intro)?.intro;
+    if (intro) {
+      const details = document.createElement('details');
+      details.className = 'comm-intro';
+      const summary = document.createElement('summary');
+      summary.textContent = `About ${apiBook(item.book)}`;
+      details.append(summary, ...intro.split('\n').filter((t) => t.trim()).map((t) => {
+        const p = document.createElement('p');
+        p.textContent = t;
+        return p;
+      }));
+      body.append(details);
+    }
+    chapters.forEach(({ notes }, ci) => {
+      const heading = document.createElement('h3');
+      heading.textContent = `${item.book} ${item.chapters[ci]}`;
+      body.append(heading);
+      if (!notes.length) {
+        const none = document.createElement('p');
+        none.className = 'comm-none';
+        none.textContent = 'No commentary for this chapter.';
+        body.append(none);
+      }
+      notes.forEach((text) => body.append(commentaryNote(text)));
+    });
+    body.append(commentaryNotice());
+  } catch (err) {
+    if (gen !== commentaryGen) return;
+    const status = document.createElement('p');
+    status.className = 'status';
+    status.textContent = navigator.onLine
+      ? `${err.message}. Check your connection and try again.`
+      : "You're offline, and the commentary for this reading isn't saved on this device yet.";
+    body.replaceChildren(status);
+  }
+}
+
+const commentary = $('#commentary');
+$('#commentary-btn').addEventListener('click', openCommentary);
+$('#commentary-close').addEventListener('click', () => commentary.close());
 
 function updateReaderHint() {
   $('#reader-hint').hidden = Object.keys(state.marks).length > 0;
