@@ -598,22 +598,24 @@ function render() {
   $('#review-all-btn').textContent = `Marked verses (${markCount})`;
   const after = week ? week.endIdx + 1 : t;
 
-  // Plan list: kept short so the current week stays the focus. In a group the
-  // week section covers what's next; otherwise preview a few readings.
-  const upcoming = plan.map((_, i) => i).filter((i) => !isRead(i) && i !== next && i >= after);
-  const preview = week ? 0 : 6;
-  let show;
-  if (state.showCompleted) show = plan.map((_, i) => i);
-  else if (expandUpcoming) show = upcoming;
-  else show = upcoming.slice(0, preview);
-  const hiddenCount = upcoming.length - show.length;
+  // In a group the week section covers what's next; otherwise preview a few
+  // readings. The whole plan lives in Settings → Full plan.
+  const upcoming = week ? [] : plan.map((_, i) => i).filter((i) => !isRead(i) && i !== next && i >= after).slice(0, 6);
+  $('#upnext').hidden = !upcoming.length;
+  $('#upnext-list').innerHTML = upcoming.map((i) => itemHtml(i, t, due)).join('');
 
-  $('#plan-heading').textContent = state.showCompleted ? 'Full plan' : week ? 'After this week' : 'Up next';
-  $('#more-btn').hidden = state.showCompleted || upcoming.length <= preview;
-  $('#more-btn').textContent = expandUpcoming ? 'Show less' : `Show all upcoming (${hiddenCount})`;
-  $('#completed-btn').hidden = !state.showCompleted && !expandUpcoming && doneCount === 0;
+  $('#full-plan-status').textContent = `${doneCount} done · ${total - doneCount} to go`;
+  if (planDialog.open) renderPlan();
+}
+
+// Full plan sheet: every unread reading by month, or every reading with completed shown.
+function renderPlan() {
+  const t = todayIndex();
+  const due = dueBefore();
+  const doneCount = Object.keys(state.read).length;
+  const show = plan.map((_, i) => i).filter((i) => state.showCompleted || !isRead(i));
   $('#completed-btn').textContent = state.showCompleted ? 'Hide completed' : `Show completed (${doneCount})`;
-  $('#jump-btn').hidden = !state.showCompleted;
+  $('#completed-btn').hidden = !state.showCompleted && doneCount === 0;
 
   const groups = new Map();
   show.forEach((i) => {
@@ -625,7 +627,7 @@ function render() {
     ? [...groups].map(([month, idxs]) =>
         `<div class="month"><h3>${month}</h3><ul class="list">${idxs.map((i) => itemHtml(i, t, due)).join('')}</ul></div>`
       ).join('')
-    : upcoming.length || state.showCompleted ? '' : '<p class="empty">Nothing left after this one.</p>';
+    : '<p class="empty">Every reading is done.</p>';
 }
 
 function itemHtml(i, t, lateBefore = t) {
@@ -695,21 +697,25 @@ function hideToast() {
   undoCatchUp = null;
 }
 
-let expandUpcoming = false;
-$('#more-btn').addEventListener('click', () => {
-  expandUpcoming = !expandUpcoming;
-  render();
+const planDialog = $('#plan');
+$('#full-plan-btn').addEventListener('click', () => {
+  renderPlan();
+  openSheet(planDialog);
 });
+$('#plan-close').addEventListener('click', () => planDialog.close());
 
 $('#completed-btn').addEventListener('click', () => {
   state.showCompleted = !state.showCompleted;
   save();
-  render();
+  renderPlan();
 });
 
+// Today's reading, or the first unread one if today's is done (and hidden).
 $('#jump-btn').addEventListener('click', () => {
   const t = Math.max(0, Math.min(todayIndex(), plan.length - 1));
-  document.querySelector(`#plan-list [data-index="${t}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const rows = [...document.querySelectorAll('#plan-list [data-index]')];
+  const row = rows.find((r) => +r.dataset.index >= t) || rows[rows.length - 1];
+  row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 });
 
 // ---------- Scripture ----------
