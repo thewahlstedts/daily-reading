@@ -303,6 +303,23 @@
       <span class="spacer"></span>
     </div>
     <div class="review-body" id="review-body"></div>
+    <div class="toast" id="review-toast" role="status" hidden>
+      <span id="review-toast-text"></span>
+      <button class="link-btn" id="review-toast-undo" type="button">Undo</button>
+    </div>
+  </dialog>
+
+  <!-- Confirm before unmarking from the review -->
+  <dialog id="unmark-dialog" class="note-dialog" aria-labelledby="unmark-title">
+    <form id="unmark-form">
+      <h2 id="unmark-title">Unmark verses?</h2>
+      <p class="eyebrow" id="unmark-ref"></p>
+      <small id="unmark-note" hidden>Its note will be removed too.</small>
+      <div class="row note-actions">
+        <button class="btn ghost" type="button" id="unmark-cancel">Cancel</button>
+        <button class="btn primary" type="submit">Unmark</button>
+      </div>
+    </form>
   </dialog>
 
   <!-- Note on a marked verse (or group of verses) -->
