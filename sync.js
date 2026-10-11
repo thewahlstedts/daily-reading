@@ -47,8 +47,11 @@ window.onStateSaved = () => {
   pushTimer = setTimeout(push, 800);
 };
 
+const OFFLINE = "Offline — changes will sync when you're back online";
+
 async function push() {
   if (!user) return;
+  if (!navigator.onLine) return setStatus(OFFLINE);
   const data = syncedSnapshot();
   setStatus('Syncing…');
   const { data: row, error } = await sb
@@ -66,6 +69,7 @@ async function push() {
 // Pull the account's copy and reconcile with this device.
 async function pull({ firstSignIn = false } = {}) {
   if (!user) return;
+  if (!navigator.onLine) return setStatus(OFFLINE);
   const { data: row, error } = await sb.from('progress').select('data, updated_at').maybeSingle();
   if (error) return setStatus("Couldn't reach sync server", true);
 
@@ -165,6 +169,7 @@ function setMessage(text, isError = false) {
 window.sendSignInLink = async (email) => {
   if (!sb) return 'Sync is unavailable right now.';
   if (!/^\S+@\S+\.\S+$/.test(email)) return 'Enter a valid email address.';
+  if (!navigator.onLine) return "You're offline. Connect to the internet to sign in.";
   const { error } = await sb.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: location.origin + location.pathname },
@@ -177,6 +182,7 @@ window.signInWithCode = async (email, code) => {
   if (!sb) return 'Sync is unavailable right now.';
   const token = String(code).replace(/\D/g, '');
   if (token.length !== 6) return 'Enter the 6-digit code from the email.';
+  if (!navigator.onLine) return "You're offline. Connect to the internet to sign in.";
   const { error } = await sb.auth.verifyOtp({ email, token, type: 'email' });
   return error ? "That code didn't work. Check it, or request a new code (codes expire after an hour)." : null;
 };

@@ -225,7 +225,7 @@ $('#ob-translations').addEventListener('click', (e) => {
   save();
   renderTranslations();
   renderListening();
-  prefetchBundledBible();
+  prefetchForOffline();
 });
 
 function renderShare() {
