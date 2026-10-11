@@ -22,7 +22,7 @@ window.startOnboarding = () => {
   obStep = Math.min(Math.max(saved, 0), OB_STEPS.length - 1);
   try { obFromLink = localStorage.getItem('daily-reading:invite') === '1'; } catch {} // arrived via a group's share link
   borrowControls();
-  onboarding.showModal();
+  openSheet(onboarding);
   showStep();
 };
 

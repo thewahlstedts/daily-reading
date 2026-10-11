@@ -3,6 +3,14 @@
 const STORE_KEY = 'daily-reading:v1';
 const $ = (sel) => document.querySelector(sel);
 
+// showModal() focuses the sheet's first button (the back arrow), which iOS
+// outlines even after a tap; focus the sheet itself instead.
+function openSheet(d) {
+  if (d.open) return;
+  d.showModal();
+  d.focus();
+}
+
 // ---------- State ----------
 
 const defaults = {
@@ -343,7 +351,7 @@ $('#review-close').addEventListener('click', () => review.close());
 
 function openReview(range) {
   reviewRange = range;
-  if (!review.open) review.showModal();
+  openSheet(review);
   renderReview();
 }
 
@@ -944,7 +952,7 @@ async function openReader(index, autoplay) {
   const body = $('#reader-body');
   body.innerHTML = '<p class="status">Loading…</p>';
   body.scrollTop = 0;
-  if (!reader.open) reader.showModal();
+  openSheet(reader);
 
   try {
     const chapters = await Promise.all(item.chapters.map((c) => fetchChapter(item.book, c)));
@@ -1517,7 +1525,7 @@ $('#settings-btn').addEventListener('click', () => {
   renderAiSetting();
   applyReadingText();
   loadVoices();
-  settings.showModal();
+  openSheet(settings);
 });
 $('#settings-close').addEventListener('click', () => settings.close());
 
