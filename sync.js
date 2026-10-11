@@ -225,7 +225,7 @@ $('#sync-signout').addEventListener('click', async () => {
 // Account screen (header icon, Settings row, expired-session banner).
 const accountDialog = $('#account');
 function openAccount() {
-  if (!accountDialog.open) accountDialog.showModal();
+  openSheet(accountDialog);
   if (!user) $('#sync-email-input').focus();
 }
 
