@@ -8,7 +8,7 @@
 
 // Public half of the VAPID key pair (the private half is a function secret).
 // Leave empty to hide the feature.
-const VAPID_PUBLIC_KEY = '';
+const VAPID_PUBLIC_KEY = 'BJJ08yGLVuDMXXYGr1k7GI2jhkWACKwj3Y6Zdj3TuzpSoEPuUvGL_cyB_xLRWv4KSDxxRq15udkVNr7a34emWdo';
 const REMINDER_KEY = 'daily-reading:reminder';
 const DEFAULT_TIME = '07:00';
 const SUBSCRIBE_TIMEOUT = 15000;
