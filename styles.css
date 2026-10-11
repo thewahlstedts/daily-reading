@@ -147,7 +147,7 @@ section > h2, .section-head { margin-bottom: 10px; }
 .review-verse { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; align-items: start; padding: 12px 8px 12px 16px; border-top: 1px solid var(--line); }
 .review-ref { font: 600 13px/1.9 var(--sans); color: var(--accent); white-space: nowrap; display: flex; flex-direction: column; line-height: 1.5; padding-top: 3px; }
 .review-ref small { font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: .03em; }
-.review-verse p { margin: 0; font-family: var(--read-font, var(--serif)); font-size: 18px; line-height: 1.6; }
+.review-verse p { margin: 0; font-family: var(--read-font); font-size: var(--read-size); line-height: var(--read-leading); text-align: var(--read-align); hyphens: var(--read-hyphens); -webkit-hyphens: var(--read-hyphens); }
 .review-verse p.muted { font: 14px var(--sans); color: var(--muted); }
 .review-verse .icon-btn { padding: 6px; }
 .review-verse p sup { font: 600 .55em var(--sans); color: var(--accent); margin-right: 3px; }
