@@ -729,17 +729,62 @@ function apiBook(book) {
   return book === 'Psalm' ? 'Psalms' : book;
 }
 
-// Flatten HelloAO verse content (strings, poem lines, footnote markers) to plain text.
-function verseText(content) {
-  return content
-    .map((part) => (typeof part === 'string' ? part : part.text || ''))
-    .join(' ')
-    .replace(/¶/g, '') // paragraph marks in some sources (e.g. KJV)
-    .replace(/\s+/g, ' ')
-    .trim();
+// A verse's layout is a list of [kind, text] parts, kind being what starts there:
+// '' continues the paragraph or line, 'p' new paragraph, 'q1'–'q3' poetry line at that
+// indent, 'b' stanza break, 's' section heading, 'd' psalm title. Only text parts are
+// read aloud, so `text` leaves out the headings.
+const PART_KINDS = new Set(['', 'p', 'q1', 'q2', 'q3', 'b', 's', 'd']);
+const LABEL_KINDS = new Set(['b', 's', 'd']);
+
+function toVerse(n, parts) {
+  parts = parts.filter((p) => Array.isArray(p) && PART_KINDS.has(p[0]) && typeof p[1] === 'string');
+  const text = parts.filter(([k, t]) => !LABEL_KINDS.has(k) && t).map(([, t]) => t).join(' ');
+  return { n, text, parts };
 }
 
-// Returns { verses: [{ n, text }], audio: { narrator: { url, timings } } | null, copyright?, fumsToken? }
+const cleanText = (t) => t.replace(/¶/g, '').replace(/\s+/g, ' ').trim(); // ¶: paragraph marks in some sources (e.g. KJV)
+
+// HelloAO chapter content: headings and breaks sit between verses; poem lines inside them.
+function helloaoVerses(content) {
+  const verses = [];
+  let pending = [];   // headings waiting for the next verse
+  let brk = 'p';      // what the next text starts: '' continues, 'p' paragraph or stanza, 'l' new line
+  let poetry = false; // last text was a poem line, so a break before another one is a stanza break
+  for (const item of content) {
+    if (item.type === 'heading' || item.type === 'hebrew_subtitle') {
+      const text = cleanText((item.content || []).filter((c) => typeof c === 'string').join(' '));
+      if (text) pending.push([item.type === 'heading' ? 's' : 'd', text]);
+      brk = 'p';
+      poetry = false;
+    } else if (item.type === 'line_break') {
+      brk = 'p';
+    } else if (item.type === 'verse' && Number.isInteger(item.number) && Array.isArray(item.content)) {
+      const parts = pending;
+      pending = [];
+      for (const c of item.content) {
+        if (c?.lineBreak) { brk = brk || 'l'; continue; }
+        if (c?.heading) { parts.push(['s', cleanText(String(c.heading))]); brk = 'p'; poetry = false; continue; }
+        const text = cleanText(typeof c === 'string' ? c : typeof c?.text === 'string' ? c.text : '');
+        if (!text) continue;
+        if (c.poem) {
+          if (brk === 'p' && poetry) parts.push(['b', '']);
+          parts.push([`q${Math.min(Math.max(c.poem | 0, 1), 3)}`, text]);
+          poetry = true;
+        } else if (brk || !parts.length) {
+          parts.push([brk ? 'p' : '', text]);
+          poetry = false;
+        } else {
+          parts.at(-1)[1] += ` ${text}`;
+        }
+        brk = '';
+      }
+      verses.push(toVerse(item.number, parts));
+    }
+  }
+  return verses;
+}
+
+// Returns { verses: [{ n, text, parts }], audio: { narrator: { url, timings } } | null, copyright?, fumsToken? }
 async function fetchChapter(book, chapter, b = bible()) {
   const code = BOOK_CODES[book];
   if (!code) throw new Error(`Unknown book "${book}"`);
@@ -751,9 +796,7 @@ async function fetchChapter(book, chapter, b = bible()) {
   const res = await fetch(helloaoUrl(b, code, chapter));
   if (!res.ok) throw new Error(`Couldn't load ${book} ${chapter} (${res.status})`);
   const data = await res.json();
-  const verses = (data.chapter?.content || [])
-    .filter((c) => c.type === 'verse' && Number.isInteger(c.number) && Array.isArray(c.content))
-    .map((c) => ({ n: c.number, text: verseText(c.content) }));
+  const verses = helloaoVerses(data.chapter?.content || []);
 
   let audio = null;
   if (b.narrated && data.thisChapterAudioLinks) {
@@ -785,7 +828,8 @@ async function fetchLocalChapter(b, code, chapter, key) {
   try { data = await bookCache.get(path); } catch (err) { bookCache.delete(path); throw err; }
   const rows = Array.isArray(data[chapter]) ? data[chapter] : [];
   const result = {
-    verses: rows.filter((r) => Number.isInteger(r[0]) && typeof r[1] === 'string').map(([n, text]) => ({ n, text })),
+    verses: rows.filter((r) => Array.isArray(r) && Number.isInteger(r[0]))
+      .map(([n, ...parts]) => toVerse(n, parts.map((p) => (typeof p === 'string' ? ['', p] : p)))),
     audio: null,
     notice: b.id,
   };
@@ -810,7 +854,7 @@ async function fetchLicensedChapter(b, code, chapter, key) {
     notice: 'apibible',
     verses: (Array.isArray(data.verses) ? data.verses : [])
       .filter((v) => Number.isInteger(v.n) && typeof v.text === 'string')
-      .map((v) => ({ n: v.n, text: v.text })),
+      .map((v) => (Array.isArray(v.parts) ? toVerse(v.n, v.parts) : toVerse(v.n, [['', v.text]]))),
     audio: null,
     copyright: typeof data.copyright === 'string' ? data.copyright : '',
     fumsToken: typeof data.fumsToken === 'string' ? data.fumsToken : '',
@@ -914,21 +958,9 @@ async function openReader(index, autoplay) {
       const heading = document.createElement('h3');
       heading.textContent = `${item.book} ${item.chapters[ci]}`;
       body.append(heading);
-      current.segments.push({ el: heading, ci, n: 0, speak: `${apiBook(item.book) === 'Psalms' ? 'Psalm' : item.book} chapter ${item.chapters[ci]}.` });
-      const p = document.createElement('p');
-      verses.forEach((v) => {
-        const span = document.createElement('span');
-        span.className = 'verse';
-        const sup = document.createElement('sup');
-        sup.textContent = v.n;
-        span.append(sup);
-        span.append(document.createTextNode(v.text + ' '));
-        span.dataset.seg = current.segments.length;
-        span.dataset.ref = `${BOOK_CODES[item.book]}.${item.chapters[ci]}.${v.n}`;
-        current.segments.push({ el: span, ci, n: v.n, speak: v.text.replace(/[⌞⌟]/g, '') });
-        p.append(span);
-      });
-      body.append(p);
+      const chapterSeg = { el: heading, ci, n: 0, speak: `${apiBook(item.book) === 'Psalms' ? 'Psalm' : item.book} chapter ${item.chapters[ci]}.` };
+      current.segments.push(chapterSeg);
+      renderVerses(body, verses, `${BOOK_CODES[item.book]}.${item.chapters[ci]}`, ci, chapterSeg);
     });
     refreshVerseMarks();
     // Copyrighted translations: show the required notice and links; report licensed views.
@@ -944,6 +976,55 @@ async function openReader(index, autoplay) {
       : offlineMessage(bible());
     body.replaceChildren(status);
   }
+}
+
+// Lays out a chapter's verses as paragraphs and poetry lines. A verse spanning several
+// lines gets one span per line, all sharing its data-seg / data-ref.
+function renderVerses(body, verses, chapterRef, ci, chapterSeg) {
+  let block = null;
+  let stanza = false;
+  const open = (className) => {
+    block = document.createElement('p');
+    block.className = className;
+    body.append(block);
+  };
+  verses.forEach((v) => {
+    const seg = current.segments.length;
+    let first = null;
+    for (const [kind, text] of v.parts) {
+      if (kind === 's' || kind === 'd') {
+        const label = document.createElement(kind === 's' ? 'h4' : 'p');
+        label.className = kind === 's' ? 'section' : 'psalm-title';
+        label.textContent = text;
+        body.append(label);
+        if (kind === 'd') chapterSeg.speak += ` ${text}`;
+        block = null;
+        continue;
+      }
+      if (kind === 'b') { stanza = true; block = null; continue; }
+      if (!text) continue;
+      if (kind[0] === 'q') {
+        open(`line ${kind}${stanza ? ' stanza' : ''}`);
+        stanza = false;
+      } else if (kind === 'p' || !block) {
+        open('para');
+        stanza = false;
+      }
+      const span = document.createElement('span');
+      span.className = 'verse';
+      if (!first) {
+        const sup = document.createElement('sup');
+        sup.textContent = v.n;
+        span.append(sup);
+        first = span;
+      }
+      span.append(document.createTextNode(`${text} `));
+      span.dataset.seg = seg;
+      span.dataset.ref = `${chapterRef}.${v.n}`;
+      block.append(span);
+    }
+    if (first) current.segments.push({ el: first, ci, n: v.n, speak: v.text.replace(/[⌞⌟]/g, '') });
+  });
 }
 
 function closeReader() {
@@ -972,10 +1053,12 @@ $('#reader-body').addEventListener('click', (e) => {
 });
 
 function refreshVerseMarks() {
-  $('#reader-body').querySelectorAll('.verse').forEach((span) => {
+  const spans = [...$('#reader-body').querySelectorAll('.verse')];
+  spans.forEach((span, k) => {
     const ref = span.dataset.ref;
+    const lastOfVerse = spans[k + 1]?.dataset.ref !== ref;
     span.classList.toggle('marked', Boolean(state.marks[ref]));
-    span.classList.toggle('has-note', Boolean(state.marks[ref]) && markRun(ref).at(-1) === ref && Boolean(runNote(markRun(ref))));
+    span.classList.toggle('has-note', lastOfVerse && Boolean(state.marks[ref]) && markRun(ref).at(-1) === ref && Boolean(runNote(markRun(ref))));
   });
 }
 
@@ -1078,7 +1161,7 @@ function highlight(i) {
   document.querySelectorAll('.verse.speaking').forEach((el) => el.classList.remove('speaking'));
   const seg = current?.segments[i];
   if (!seg) return;
-  if (seg.el.classList.contains('verse')) seg.el.classList.add('speaking');
+  if (seg.el.classList.contains('verse')) $('#reader-body').querySelectorAll(`[data-seg="${i}"]`).forEach((el) => el.classList.add('speaking'));
   seg.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 

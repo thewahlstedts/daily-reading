@@ -61,6 +61,12 @@ def plan_chapters(codes):
     return seen
 
 
+def verse_text(parts):
+    # Rows are [verse, part, ...]; skip stanza breaks, section headings and psalm titles.
+    return ' '.join(p if isinstance(p, str) else p[1] for p in parts
+                    if isinstance(p, str) or p[0] not in ('b', 's', 'd'))
+
+
 def clean(text):
     # LEB marks idioms ⌞like this⌟ and doubtful passages 〚like this〛; neither should be read.
     return re.sub(r'\s+', ' ', re.sub('[⌞⌟〚〛]', '', text)).strip()
@@ -114,7 +120,8 @@ def main():
         parts = [speak(f'{names[code]}, chapter {c}.'), silence(HEADING_PAUSE)]
         at = sum(len(p) for p in parts)
         starts = []
-        for n, text in verses:
+        for n, *verse in verses:
+            text = verse_text(verse)
             if n <= len(starts):
                 sys.exit(f'{code} {c}: verse {n} is out of order')
             # Verses the LEB omits (e.g. Luke 17:36) share the next verse's start, so

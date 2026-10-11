@@ -1,8 +1,11 @@
 """Convert a SWORD Bible module into per-book JSON for the app.
 
 Usage: python -I tools/sword_to_json.py <sword-library-dir> <MODULE> <out-dir>
-Writes <out-dir>/<USFM>.json = {"<chapter>": [[verse, "text"], ...], ...}
-Headings, footnotes and other markup are dropped; only verse text is kept.
+Writes <out-dir>/<USFM>.json = {"<chapter>": [[verse, part, ...], ...], ...}
+Each part is a string (continues the current paragraph or line) or [kind, "text"]
+for what starts there: "p" paragraph, "q1"-"q3" poetry line at that indent,
+"b" stanza break (empty text), "s" section heading, "d" psalm title.
+Footnotes and other markup are dropped.
 Requires: pip install pysword==0.2.8 (use a throwaway venv).
 """
 import html
@@ -25,17 +28,62 @@ OSIS_TO_USFM = {
     '3John': '3JN', 'Jude': 'JUD', 'Rev': 'REV',
 }
 
-DROP = re.compile(r'<(note|title)\b[^>]*>.*?</\1>', re.S)   # footnotes, headings, psalm titles
+NOTE = re.compile(r'<note\b[^>]*>.*?</note>', re.S)
+TOKEN = re.compile(r'<title\b([^>]*)>(.*?)</title>|<(\w+)\b([^>]*?)/?>|</\w+>|([^<]+)', re.S)
 TAG = re.compile(r'<[^>]+>')
 
 
-def clean(raw):
-    text = DROP.sub(' ', raw)
-    text = TAG.sub(' ', text)
-    text = html.unescape(text)
+def clean(text):
+    text = html.unescape(TAG.sub(' ', text))
     text = TAG.sub(' ', text)  # stray escaped markers in some sources, e.g. &lt;block&gt;
     text = re.sub(r'\s+([,.;:!?’”)\]])', r'\1', text)  # no space before punctuation
     return re.sub(r'\s+', ' ', text).strip()
+
+
+class Chapter:
+    """Turns one chapter's OSIS milestones (which cross verse boundaries) into verse parts."""
+
+    def __init__(self):
+        self.brk = 'p'        # what the next text starts: '' continues, 'p' paragraph, 'qN' line
+        self.stanza = False   # a line group opened after earlier poetry: gap before the next line
+        self.poetry = False
+
+    def verse(self, raw):
+        parts = []
+        for title_attrs, title, tag, attrs, text in TOKEN.findall(NOTE.sub('', raw)):
+            if title:
+                heading = clean(title)
+                if heading:
+                    parts.append(['d' if 'type="psalm"' in title_attrs else 's', heading])
+            elif tag == 'div' and 'type="x-p"' in attrs and 'sID=' in attrs:
+                self.brk = 'p'
+            elif tag == 'lg' and 'sID=' in attrs:
+                self.stanza = self.poetry
+            elif tag == 'l' and 'sID=' in attrs:
+                level = re.search(r'level="(\d)"', attrs)
+                self.brk = f'q{min(int(level.group(1)) if level else 1, 3)}'
+            elif tag == 'l' and 'eID=' in attrs:
+                self.brk = 'p'  # prose after a line that isn't followed by another one
+            elif text.strip() or (text and not self.brk and parts):
+                self.add(parts, text)
+        return [clean(p) if isinstance(p, str) else [p[0], clean(p[1])] for p in parts]
+
+    def add(self, parts, text):
+        if self.brk:
+            if self.brk.startswith('q'):
+                if self.stanza:
+                    parts.append(['b', ''])
+                self.poetry, self.stanza = True, False
+            else:
+                self.poetry = self.stanza = False
+            parts.append([self.brk, text])
+            self.brk = ''
+        elif parts and isinstance(parts[-1], str):
+            parts[-1] += text
+        elif parts and parts[-1][0] not in ('s', 'd', 'b'):
+            parts[-1][1] += text
+        elif text.strip():
+            parts.append(text)
 
 
 def main(library, module, out_dir):
@@ -54,10 +102,11 @@ def main(library, module, out_dir):
             chapters = {}
             for c, count in enumerate(book.chapter_lengths, start=1):
                 verses = []
+                state = Chapter()
                 for v in range(1, count + 1):
-                    text = clean(bible.get(books=[book.osis_name], chapters=[c], verses=[v], clean=False))
-                    if text:
-                        verses.append([v, text])
+                    parts = state.verse(bible.get(books=[book.osis_name], chapters=[c], verses=[v], clean=False))
+                    if any(isinstance(p, str) or p[0] not in ('s', 'd', 'b') for p in parts):
+                        verses.append([v, *parts])
                 if verses:
                     chapters[str(c)] = verses
                     total += len(verses)
