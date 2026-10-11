@@ -952,7 +952,7 @@ async function openReader(index, autoplay) {
     current.narration = navigator.onLine && useNarration() && chapters.every((ch) => ch.audio?.[state.narrator])
       ? chapters.map((ch) => ({ ...ch.audio[state.narrator], timings: null }))
       : null;
-    $('#reader-sub').textContent = `${fmtLong.format(dateForIndex(index))} · ${bible().name}${current.narration ? ` · read by ${narratorName()}` : ''}`;
+    $('#reader-sub').textContent = `${fmtLong.format(dateForIndex(index))}\n${bible().name}${current.narration ? ` · read by ${narratorName()}` : ''}`;
     body.innerHTML = '';
     chapters.forEach(({ verses }, ci) => {
       const heading = document.createElement('h3');
