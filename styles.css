@@ -275,15 +275,15 @@ dialog::backdrop { background: rgba(0,0,0,.3); }
 .set-name { font-weight: 600; }
 .settings small, .fine { color: var(--muted); font-weight: 400; font-size: 13px; line-height: 1.4; }
 .fine { text-align: center; margin: 0; }
-.settings input[type=date], .settings select, .settings input[type=email], .settings input[type=url] { font: inherit; font-size: 15px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); min-width: 0; }
-.set-row:not(.stacked) > input[type=date], .set-row:not(.stacked) > select { flex: none; max-width: 52%; }
+.settings input[type=date], .settings input[type=time], .settings select, .settings input[type=email], .settings input[type=url] { font: inherit; font-size: 15px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); min-width: 0; }
+.set-row:not(.stacked) > input[type=date], .set-row:not(.stacked) > input[type=time], .set-row:not(.stacked) > select { flex: none; max-width: 52%; }
 .settings input[type=range] { width: 100%; }
 .row.nowrap { flex-wrap: nowrap; }
 .row.nowrap > input, .row.nowrap > select { flex: 1; }
 .set-row .btn { align-self: flex-start; }
 .row .btn { align-self: auto; }
 .file-btn { display: inline-flex; align-items: center; }
-.sync-message.error, #sync-status.error { color: var(--late); }
+.sync-message.error, #sync-status.error, #remind-hint.error { color: var(--late); }
 .sync #sync-paste { display: flex; flex-direction: column; gap: 8px; }
 .sync [hidden] { display: none !important; }
 

@@ -189,6 +189,10 @@ window.signInWithCode = async (email, code) => {
 
 window.currentUserEmail = () => user?.email ?? null;
 
+// For reminder.js, which keeps its own table.
+window.supabaseClient = sb;
+window.currentUserId = () => user?.id ?? null;
+
 $('#sync-send').addEventListener('click', async () => {
   const email = $('#sync-email-input').value.trim();
   $('#sync-send').disabled = true;
@@ -216,6 +220,7 @@ $('#sync-now').addEventListener('click', async () => {
 
 $('#sync-signout').addEventListener('click', async () => {
   signingOut = true;
+  await window.beforeSignOut?.(); // still signed in, so this device's reminder can be removed
   await sb.auth.signOut();
   meta = {};
   saveMeta();
@@ -257,6 +262,7 @@ if (!sb) {
     user = session?.user ?? null;
     renderAccount();
     window.onAuthChanged?.();
+    document.dispatchEvent(new Event('authchange'));
     if (!user && (event === 'INITIAL_SESSION' || event === 'SIGNED_OUT')) showExpired();
     if (user && wasSignedOut) {
       // Defer: calling Supabase inside this callback can deadlock the auth client.

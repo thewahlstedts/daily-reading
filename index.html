@@ -388,6 +388,20 @@
         </div>
       </section>
 
+      <section class="set-group" id="remind-group" aria-labelledby="sg-remind">
+        <h3 id="sg-remind">Reminder</h3>
+        <div class="set-card">
+          <label class="set-row">
+            <span class="set-text"><span class="set-name">Daily reminder</span><small id="remind-hint"></small></span>
+            <input type="checkbox" class="switch" id="set-remind">
+          </label>
+          <label class="set-row" id="remind-time-row" hidden>
+            <span class="set-text"><span class="set-name">Time</span></span>
+            <input type="time" id="set-remind-time" step="300">
+          </label>
+        </div>
+      </section>
+
       <section class="set-group" aria-labelledby="sg-reading">
         <h3 id="sg-reading">Reading</h3>
         <div class="set-card">
@@ -485,6 +499,7 @@
   <script src="vendor/supabase-2.117.1.js"></script>
   <script src="app.js"></script>
   <script src="sync.js"></script>
+  <script src="reminder.js"></script>
   <script src="onboarding.js"></script>
 </body>
 </html>
