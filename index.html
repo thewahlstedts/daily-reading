@@ -364,6 +364,18 @@
     </form>
   </dialog>
 
+  <dialog id="feedback-dialog" class="note-dialog" aria-labelledby="feedback-title">
+    <form id="feedback-form">
+      <h2 id="feedback-title">Send feedback</h2>
+      <textarea id="feedback-text" rows="6" maxlength="2000" required placeholder="What's working, what isn't, what you'd like to see?" aria-labelledby="feedback-title"></textarea>
+      <small id="feedback-hint"></small>
+      <div class="row note-actions">
+        <button class="btn ghost" type="button" id="feedback-cancel">Cancel</button>
+        <button class="btn primary" type="submit" id="feedback-send">Send</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- Settings -->
   <dialog id="settings" tabindex="-1" class="sheet">
     <div class="sheet-head">
@@ -491,6 +503,16 @@
         <div class="set-card">
           <button class="set-row set-link" id="settings-account" type="button">
             <span class="set-text"><span class="set-name">Account &amp; sync</span><small id="settings-account-status">Not signed in</small></span>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+      </section>
+
+      <section class="set-group" aria-labelledby="sg-feedback">
+        <h3 id="sg-feedback">Feedback</h3>
+        <div class="set-card">
+          <button class="set-row set-link" id="feedback-btn" type="button">
+            <span class="set-text"><span class="set-name">Send feedback</span><small id="feedback-status">Ideas, problems, anything</small></span>
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
           </button>
         </div>
