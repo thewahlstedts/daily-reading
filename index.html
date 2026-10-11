@@ -118,7 +118,9 @@
         <h2 id="reader-title"></h2>
         <p class="eyebrow" id="reader-sub"></p>
       </div>
-      <span class="spacer"></span>
+      <button class="icon-btn" id="commentary-btn" type="button" aria-label="Commentary" title="Commentary">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2zM22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg>
+      </button>
     </div>
     <p class="reader-hint" id="reader-hint">Tap a verse to mark it for your group.</p>
     <article id="reader-body" class="scripture"></article>
@@ -144,6 +146,21 @@
       </div>
       <button class="btn ghost" id="rate-btn" aria-label="Reading speed"></button>
     </div>
+  </dialog>
+
+  <!-- Commentary for the open reading (Tyndale Open Study Notes) -->
+  <dialog id="commentary" class="sheet">
+    <div class="sheet-head">
+      <button class="icon-btn" id="commentary-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="sheet-title">
+        <h2>Commentary</h2>
+        <p class="eyebrow" id="commentary-sub"></p>
+      </div>
+      <span class="spacer"></span>
+    </div>
+    <article class="commentary-body" id="commentary-body"></article>
   </dialog>
 
   <!-- Getting started (first visit) -->

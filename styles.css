@@ -212,6 +212,19 @@ dialog::backdrop { background: rgba(0,0,0,.3); }
 .verse { border-radius: 4px; cursor: pointer; transition: background .2s; }
 .verse sup, .sample sup { font-family: var(--sans); font-size: .55em; color: var(--accent); margin-right: 3px; font-weight: 600; }
 .verse.speaking { background: var(--highlight); }
+.commentary-body { flex: 1; overflow-y: auto; padding: 20px 16px 40px; max-width: 680px; width: 100%; margin: 0 auto; font-family: var(--read-font); font-size: calc(var(--read-size) * .85); line-height: var(--read-leading); overflow-wrap: anywhere; }
+.commentary-body h3 { font-size: .75em; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 28px 0 8px; font-weight: 600; }
+.commentary-body h3:first-child, .comm-intro + h3 { margin-top: 0; }
+.comm-note { margin: 0; padding: .7em 0 .2em; }
+.comm-note + .comm-note { border-top: 1px solid var(--line); }
+.comm-note p { margin: 0 0 .5em; }
+.comm-ref { font-family: var(--sans); font-size: .85em; color: var(--accent); margin-right: 2px; }
+.comm-none { color: var(--muted); font-style: italic; }
+.comm-intro { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 24px; }
+.comm-intro summary { cursor: pointer; font: 600 15px/1.4 var(--sans); color: var(--accent); }
+.comm-intro p { margin: .6em 0 0; }
+.commentary-body .copyright { font: 12px/1.5 var(--sans); color: var(--muted); margin-top: 32px; }
+.commentary-body .copyright a { color: var(--accent); }
 .status { font-family: var(--sans); color: var(--muted); font-size: 15px; text-align: center; padding: 40px 0; }
 
 .player { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--surface); }
