@@ -411,7 +411,9 @@ async function renderReview() {
           text.append(document.createTextNode(`${v?.text ?? '(verse not found in this translation)'} `));
         });
       } catch (err) {
-        text.textContent = err.signIn ? err.message : `Couldn't load the text (${err.message}).`;
+        text.textContent = navigator.onLine
+          ? (err.signIn ? err.message : `Couldn't load the text (${err.message}).`)
+          : offlineMessage(b);
         text.className = 'muted';
       }
       content.append(text);
@@ -664,6 +666,8 @@ const BOOK_CODES = {
 const bible = () => BIBLES.find((b) => b.id === state.translation) || BIBLES.find((b) => b.id === 'leb');
 const passageCache = new Map();
 
+const helloaoUrl = (b, code, chapter) => `${HELLOAO}${encodeURIComponent(b.src)}/${code}/${chapter}.json`;
+
 function apiBook(book) {
   return book === 'Psalm' ? 'Psalms' : book;
 }
@@ -687,7 +691,7 @@ async function fetchChapter(book, chapter, b = bible()) {
   if (b.licensed) return fetchLicensedChapter(b, code, chapter, key);
   if (b.local) return fetchLocalChapter(b, code, chapter, key);
 
-  const res = await fetch(`${HELLOAO}${encodeURIComponent(b.src)}/${code}/${chapter}.json`);
+  const res = await fetch(helloaoUrl(b, code, chapter));
   if (!res.ok) throw new Error(`Couldn't load ${book} ${chapter} (${res.status})`);
   const data = await res.json();
   const verses = (data.chapter?.content || [])
@@ -785,6 +789,10 @@ function renderNotice(chapters) {
   return p;
 }
 
+const offlineMessage = (b) => (b.licensed
+  ? `You're offline. The ${b.name} can only be read online (its license doesn't allow saving it on your device). The Lexham English Bible works offline; change it under Settings.`
+  : "You're offline, and this passage isn't saved on this device yet.");
+
 const signInError = (message) => Object.assign(new Error(message), { signIn: true });
 const bookName = (code) => Object.keys(BOOK_CODES).find((k) => BOOK_CODES[k] === code) || code;
 
@@ -840,7 +848,7 @@ async function openReader(index, autoplay) {
   try {
     const chapters = await Promise.all(item.chapters.map((c) => fetchChapter(item.book, c)));
     if (current?.index !== index) return;
-    current.narration = useNarration() && chapters.every((ch) => ch.audio?.[state.narrator])
+    current.narration = navigator.onLine && useNarration() && chapters.every((ch) => ch.audio?.[state.narrator])
       ? chapters.map((ch) => ({ ...ch.audio[state.narrator], timings: null }))
       : null;
     $('#reader-sub').textContent = `${fmtLong.format(dateForIndex(index))} · ${bible().name}${current.narration ? ` · read by ${narratorName()}` : ''}`;
@@ -874,7 +882,9 @@ async function openReader(index, autoplay) {
   } catch (err) {
     const status = document.createElement('p');
     status.className = 'status';
-    status.textContent = err.signIn ? err.message : `${err.message}. Check your connection and try again.`;
+    status.textContent = navigator.onLine
+      ? (err.signIn ? err.message : `${err.message}. Check your connection and try again.`)
+      : offlineMessage(bible());
     body.replaceChildren(status);
   }
 }
@@ -1398,7 +1408,7 @@ function renderAiSetting() {
 
 $('#set-ai').addEventListener('change', (e) => { state.ai = e.target.value; save(); renderAiSetting(); });
 
-$('#set-translation').addEventListener('change', (e) => { state.translation = e.target.value; save(); renderListening(); prefetchBundledBible(); });
+$('#set-translation').addEventListener('change', (e) => { state.translation = e.target.value; save(); renderListening(); prefetchForOffline(); });
 $('#set-narrator').addEventListener('change', (e) => { state.narrator = e.target.value; save(); renderListening(); });
 $('#set-voice').addEventListener('change', (e) => { state.voice = e.target.value; save(); });
 $('#set-rate').addEventListener('input', (e) => setRate(+e.target.value));
@@ -1539,19 +1549,46 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) rend
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
+// Ask the browser not to evict the offline copies under storage pressure. Only
+// from the installed app, since some browsers prompt for this in a tab.
+if (navigator.standalone || matchMedia('(display-mode: standalone)').matches) {
+  navigator.storage?.persist?.().catch(() => {});
+}
 
 // Resolves once the plan is loaded and rendered (later scripts wait on this).
 const planReady = loadPlan().then(() => {
   render();
   handleSharedLink();
-  setTimeout(prefetchBundledBible, 3000);
+  setTimeout(prefetchForOffline, 3000);
 });
 
-// Bundled Bibles work offline: once the app has settled, fetch every book the
-// plan uses so the service worker caches them (a few MB at most, once).
-function prefetchBundledBible() {
+// Save text for offline reading once the app has settled. The service worker
+// caches these responses, so it must control the page first (on a first visit
+// it takes over only after installing). Bundled Bibles: every book the plan
+// uses (a few MB, once). Online translations: the unread readings nearest
+// today and the next two weeks. Licensed text is never stored.
+const OFFLINE_AHEAD = 14;
+const OFFLINE_MAX = 30;
+let swControlled;
+
+async function prefetchForOffline() {
   const b = bible();
-  if (!b.local || !navigator.onLine) return;
-  const codes = [...new Set(plan.map((item) => BOOK_CODES[item.book]).filter(Boolean))];
-  codes.reduce((chain, code) => chain.then(() => fetch(`${b.local}/${code}.json`).catch(() => {})), Promise.resolve());
+  if (b.licensed || !navigator.onLine || !('serviceWorker' in navigator)) return;
+  swControlled ??= navigator.serviceWorker.controller ? Promise.resolve()
+    : new Promise((resolve) => navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true }));
+  await swControlled;
+  let urls;
+  if (b.local) {
+    urls = [...new Set(plan.map((item) => BOOK_CODES[item.book]).filter(Boolean))].map((code) => `${b.local}/${code}.json`);
+  } else {
+    const last = Math.min(todayIndex() + OFFLINE_AHEAD, plan.length - 1);
+    const unread = [];
+    for (let i = 0; i <= last; i++) if (!isRead(i)) unread.push(i);
+    urls = unread.slice(-OFFLINE_MAX).flatMap((i) => plan[i].chapters.map((c) => helloaoUrl(b, BOOK_CODES[plan[i].book], c)));
+  }
+  // One at a time, so a large first download doesn't compete with the reader.
+  for (const url of urls) {
+    if (bible() !== b || !navigator.onLine) return;
+    await fetch(url).catch(() => {});
+  }
 }

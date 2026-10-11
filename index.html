@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <!-- Security: only our own scripts run, and the page may only talk to the services it uses. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src https://audio.bible.helloao.org; connect-src 'self' https://bible.helloao.org https://fums.api.bible https://rnpuwanpgundhfmvzrne.supabase.co wss://rnpuwanpgundhfmvzrne.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; media-src https://audio.bible.helloao.org; connect-src 'self' https://bible.helloao.org https://fums.api.bible https://rnpuwanpgundhfmvzrne.supabase.co wss://rnpuwanpgundhfmvzrne.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>Daily Reading</title>
   <meta name="theme-color" id="theme-color" content="#f7f3ec">
@@ -16,10 +16,6 @@
   <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="icon-180.png">
   <link rel="stylesheet" href="styles.css">
-  <!-- Reading fonts: optional, non-blocking; system fallbacks cover offline use. -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Literata:ital,wght@0,400;0,600;1,400&display=swap" id="reading-fonts" media="print">
 </head>
 <body>
   <header class="top">
