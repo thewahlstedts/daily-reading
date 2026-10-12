@@ -945,6 +945,7 @@ let current = null;      // { index, segments: [{ el, speak, ci, n }], narration
 let pos = 0;             // segment being spoken
 let playing = false;
 let gen = 0;             // bumps whenever playback is interrupted, to ignore stale utterance events
+let pausedAt = -1;       // segment narration was paused on, so play() resumes mid-verse
 let wakeLock = null;
 
 const reader = $('#reader');
@@ -1315,6 +1316,7 @@ function play() {
 
 function pause() {
   gen++;
+  pausedAt = pos;
   speechSynthesis.cancel();
   narrationAudio.pause();
   setPlaying(false);
@@ -1322,6 +1324,7 @@ function pause() {
 
 function stopSpeech() {
   pause();
+  pausedAt = -1;
   pos = 0;
   document.querySelectorAll('.verse.speaking').forEach((el) => el.classList.remove('speaking'));
 }
@@ -1329,6 +1332,7 @@ function stopSpeech() {
 function skip(delta) {
   if (!current?.segments.length) return;
   pos = Math.max(0, Math.min(current.segments.length - 1, pos + delta));
+  pausedAt = -1;
   if (playing) speakFrom(pos);
   else highlight(pos);
 }
@@ -1397,11 +1401,15 @@ async function chapterTimings(ci) {
 }
 
 // Start time for a segment: chapter headings start at 0, verse n at timings[n - 1].
+// Timings are loaded even for a heading: highlighting and pause/resume track the
+// current verse with them, so without them a resume jumped back to the chapter start.
 async function segmentStart(i) {
   const seg = current.segments[i];
-  if (!seg.n) return 0;
-  const t = await chapterTimings(seg.ci);
-  return t[seg.n - 1] ?? 0;
+  const t = await chapterTimings(seg.ci).catch((err) => {
+    if (seg.n) throw err;
+    return [];
+  });
+  return seg.n ? t[seg.n - 1] ?? 0 : 0;
 }
 
 async function narrateFrom(i) {
@@ -1409,15 +1417,18 @@ async function narrateFrom(i) {
   const myGen = gen;
   speechSynthesis.cancel();
   const seg = current.segments[i];
+  // Resuming where it was paused: carry on mid-verse instead of seeking back.
+  const resume = pausedAt === i && narrationChapter === seg.ci && !narrationAudio.ended;
+  pausedAt = -1;
   try {
-    const start = await segmentStart(i);
+    const start = resume ? 0 : await segmentStart(i);
     if (myGen !== gen || !current) return;
     if (narrationChapter !== seg.ci) {
       narrationAudio.src = current.narration[seg.ci].url;
       narrationChapter = seg.ci;
     }
     narrationAudio.playbackRate = state.rate;
-    narrationAudio.currentTime = start;
+    if (!resume) narrationAudio.currentTime = start;
     pos = i;
     highlight(i);
     await narrationAudio.play();
