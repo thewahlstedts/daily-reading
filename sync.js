@@ -149,6 +149,7 @@ function renderAccount() {
   btn.title = user ? `Signed in as ${user.email} · syncing` : 'Sign in to sync';
   btn.setAttribute('aria-label', user ? `Account: signed in as ${user.email}` : 'Account: sign in to sync');
   $('#settings-account-status').textContent = user ? `Signed in as ${user.email}` : 'Not signed in';
+  $('#feedback-status').textContent = user ? 'Ideas, problems, anything' : 'Sign in first, so you can get a reply';
   $('#account-heading').textContent = user ? 'You’re signed in' : 'Sync across your devices';
   $('#account-sub').hidden = Boolean(user);
   if (user) $('#signin-banner').hidden = true;
@@ -243,6 +244,59 @@ $('#signin-again').addEventListener('click', () => {
   openAccount();
 });
 $('#signin-dismiss').addEventListener('click', () => { $('#signin-banner').hidden = true; });
+
+// Feedback (Settings): emailed to the owner by the `feedback` function, with
+// Reply-To set to the sender. Signed-in only, so it can't be sent anonymously.
+const FEEDBACK_FN = 'https://rnpuwanpgundhfmvzrne.supabase.co/functions/v1/feedback';
+const feedbackDialog = $('#feedback-dialog');
+
+function feedbackHint(text, isError = false) {
+  const el = $('#feedback-hint');
+  el.textContent = text;
+  el.classList.toggle('error', isError);
+}
+
+$('#feedback-btn').addEventListener('click', () => {
+  if (!user) return openAccount();
+  feedbackHint(`We'll reply to ${user.email}.`);
+  feedbackDialog.showModal();
+  $('#feedback-text').focus();
+});
+$('#feedback-cancel').addEventListener('click', () => feedbackDialog.close());
+
+$('#feedback-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const message = $('#feedback-text').value.trim();
+  if (!message) return feedbackHint('Write something first.', true);
+  if (!navigator.onLine) return feedbackHint("You're offline. Your message is still here; send it when you're connected.", true);
+  const token = await window.getAccessToken();
+  if (!token) return feedbackHint('Your sign-in has expired. Sign in again under Account & sync.', true);
+  const send = $('#feedback-send');
+  send.disabled = true;
+  feedbackHint('Sending…');
+  const context = [
+    `Translation: ${state.translation}`,
+    `Group meets: ${state.meetDay == null ? 'no group' : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][state.meetDay]}`,
+    `Home-screen app: ${navigator.standalone || matchMedia('(display-mode: standalone)').matches ? 'yes' : 'no'}`,
+  ].join('\n');
+  try {
+    const res = await fetch(FEEDBACK_FN, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, apikey: SUPABASE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, context }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : `Couldn't send (${res.status}).`);
+    $('#feedback-text').value = '';
+    feedbackDialog.close();
+    $('#feedback-status').textContent = 'Sent. Thank you!';
+  } catch (err) {
+    // fetch() rejects with a TypeError on network failure (wording varies by browser).
+    feedbackHint(err instanceof TypeError ? "Couldn't reach the server. Try again." : err.message, true);
+  } finally {
+    send.disabled = false;
+  }
+});
 
 // Previously signed in on this device, but the session is gone (expired or revoked).
 function showExpired() {

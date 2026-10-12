@@ -439,3 +439,9 @@ entrypoint = "./functions/scripture/index.ts"
 enabled = true
 verify_jwt = false # called by pg_cron with its own secret (x-cron-secret), not a user JWT
 entrypoint = "./functions/remind/index.ts"
+
+[functions.feedback]
+enabled = true
+verify_jwt = false
+import_map = "./functions/feedback/deno.json"
+entrypoint = "./functions/feedback/index.ts"
