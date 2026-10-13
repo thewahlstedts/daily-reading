@@ -145,10 +145,12 @@ function dayNumber(iso) {
   return Date.UTC(y, m - 1, d) / 86400000;
 }
 
-function dateForIndex(i) {
-  const [y, m, d] = state.start.split('-').map(Number);
-  return new Date(y, m - 1, d + i);
+function localDate(iso, plusDays = 0) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d + plusDays);
 }
+
+const dateForIndex = (i) => localDate(state.start, i);
 
 function todayIndex() {
   return dayNumber(isoDate(new Date())) - dayNumber(state.start);
@@ -204,6 +206,26 @@ function weekWindow(offset = 0) {
   return { startIdx: endIdx - 6, endIdx, meet: end, daysToMeet: toMeet + offset * 7 };
 }
 
+// The plan is 52 weeks of 7 readings. "Week N" is the same 7 readings for every
+// group; only the calendar days differ, so weekly material can be keyed to it.
+const planWeek = (i) => Math.floor(i / 7) + 1;
+
+// A start on the day after the meeting day makes each group week exactly one plan week.
+function isAligned(start = state.start, meetDay = state.meetDay) {
+  return meetDay == null || localDate(start).getDay() === (meetDay + 1) % 7;
+}
+
+// The aligned start nearest to `start` (at most 3 days earlier or later).
+function nearestAligned(start, meetDay) {
+  const ahead = ((meetDay + 1) % 7 - localDate(start).getDay() + 7) % 7;
+  return isoDate(localDate(start, ahead > 3 ? ahead - 7 : ahead));
+}
+
+function weekLabel(from, to) {
+  const a = planWeek(from), b = planWeek(to);
+  return a === b ? `Week ${a}` : `Weeks ${a}–${b}`;
+}
+
 // Index before which unread readings count as behind.
 function dueBefore() {
   const w = weekWindow(0);
@@ -211,6 +233,7 @@ function dueBefore() {
 }
 
 const fmtDay = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+const fmtRange = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 
 function renderWeek(t) {
   const w = weekWindow(weekOffset);
@@ -220,24 +243,77 @@ function renderWeek(t) {
   for (let i = Math.max(0, w.startIdx); i <= Math.min(plan.length - 1, w.endIdx); i++) idxs.push(i);
   const done = idxs.filter(isRead).length;
 
-  $('#week-title').textContent = weekOffset === 0 ? 'This week' : weekOffset === -1 ? 'Last week' : weekOffset === 1 ? 'Next week' : `Week of ${fmtShort.format(dateForIndex(w.startIdx))}`;
+  // The plan week goes in the title; further out, it replaces "Week of …" since the dates are in the meta line.
+  const near = ['Last week', 'This week', 'Next week'][weekOffset + 1];
+  const planLabel = idxs.length ? weekLabel(idxs[0], idxs[idxs.length - 1]) : '';
+  $('#week-title').textContent = near && planLabel ? `${near} · ${planLabel}`
+    : near || planLabel || `Week of ${fmtShort.format(dateForIndex(w.startIdx))}`;
   $('#week-today').hidden = weekOffset === 0;
-  const range = `${fmtDay.format(dateForIndex(w.startIdx))} – ${fmtDay.format(w.meet)}`;
+  // Short range ("Oct 15 – 21"): the list already shows each day, and the line should fit a phone.
+  const range = fmtRange.formatRange(dateForIndex(w.startIdx), w.meet);
   let when;
   if (w.daysToMeet === 0) when = 'Meeting today';
   else if (w.daysToMeet === 1) when = 'Meeting tomorrow';
   else if (w.daysToMeet > 1) when = `Meeting in ${w.daysToMeet} days`;
   else when = `Met ${fmtDay.format(w.meet)}`;
-  $('#week-meta').innerHTML = idxs.length
-    ? `${range} · <strong>${done} of ${idxs.length} read</strong> · ${when}`
-    : `${range} · Outside the plan`;
+  // Each part stays whole (white-space: nowrap) so a narrow screen breaks only at the dots.
+  $('#week-meta').innerHTML = (idxs.length
+    ? [range, `<strong>${done} of ${idxs.length} read</strong>`, when]
+    : [range, 'Outside the plan']).map((x) => `<span>${x}</span>`).join(' · ');
   $('#week-fill').style.width = idxs.length ? `${(done / idxs.length) * 100}%` : '0';
   $('#week-list').innerHTML = idxs.map((i) => itemHtml(i, t, dueBefore())).join('');
   const marked = marksIn(w.startIdx, w.endIdx).length;
-  $('#review-btn').textContent = marked ? `Marked verses (${marked})` : 'No marked verses yet';
+  $('#review-btn').textContent = marked ? `Verses to discuss (${marked})` : 'No verses to discuss yet';
   $('#review-btn').disabled = !marked;
+  // The summary for the plan week holding most of this group week's readings.
+  setSummaryButton($('#summary-btn'), idxs.length ? planWeek(idxs[idxs.length >> 1]) : null);
   return weekWindow(0);
 }
+
+// ---------- Week summaries ----------
+
+// summaries/week-NN.txt: plain text, one per plan week, paragraphs separated by blank lines.
+const summaries = {};   // plan week -> paragraphs ([] if there's no summary)
+
+async function loadSummary(n) {
+  if (summaries[n]) return summaries[n];
+  const res = await fetch(`summaries/week-${String(n).padStart(2, '0')}.txt`);
+  if (!res.ok) return (summaries[n] = []);
+  const text = await res.text();
+  return (summaries[n] = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean));
+}
+
+// Shows the button once the week's summary is known to exist (immediately if loaded before).
+function setSummaryButton(btn, n) {
+  btn.dataset.week = n ?? '';
+  btn.hidden = !summaries[n]?.length;
+  btn.textContent = `Week ${n} summary`;
+  if (n == null || summaries[n]) return;
+  loadSummary(n).then((paras) => {
+    if (btn.dataset.week === String(n)) btn.hidden = !paras.length;
+  }).catch(() => {});   // offline and not cached: no button
+}
+
+const summaryDialog = $('#summary');
+
+async function openSummary(n) {
+  const first = plan[(n - 1) * 7], last = plan[Math.min(n * 7, plan.length) - 1];
+  $('#summary-title').textContent = `Week ${n}`;
+  $('#summary-sub').textContent = `${first.ref} – ${last.ref}`;
+  const body = $('#summary-body');
+  body.replaceChildren(...(await loadSummary(n)).map((text) => {
+    const p = document.createElement('p');
+    p.textContent = text;
+    return p;
+  }));
+  openSheet(summaryDialog);
+  body.scrollTop = 0;
+}
+
+for (const id of ['#summary-btn', '#summary-solo-btn']) {
+  $(id).addEventListener('click', (e) => openSummary(+e.currentTarget.dataset.week).catch(() => {}));
+}
+$('#summary-close').addEventListener('click', () => summaryDialog.close());
 
 // ---------- Marked verses ----------
 
@@ -363,7 +439,7 @@ async function renderReview() {
   const marks = reviewRange ? marksIn(reviewRange.from, reviewRange.to) : marksIn();
   $('#review-sub').textContent = reviewRange ? reviewRange.label : 'All readings';
   if (!marks.length) {
-    body.innerHTML = '<p class="status">No marked verses here. Tap a verse while reading to mark it.</p>';
+    body.innerHTML = '<p class="status">No verses to discuss here. Tap a verse while reading to mark it.</p>';
     return;
   }
   body.innerHTML = '<p class="status">Loading…</p>';
@@ -598,7 +674,10 @@ function render() {
   const week = renderWeek(t);
   const markCount = Object.keys(state.marks).length;
   $('#marks-entry').hidden = Boolean(week) || !markCount;
-  $('#review-all-btn').textContent = `Marked verses (${markCount})`;
+  $('#review-all-btn').textContent = `Verses to discuss (${markCount})`;
+  // Without a group, the summary for the plan week of the next reading.
+  $('#summary-entry').hidden = Boolean(week) || next < 0;
+  if (!week && next >= 0) setSummaryButton($('#summary-solo-btn'), planWeek(next));
   const after = week ? week.endIdx + 1 : t;
 
   // In a group the week section covers what's next; otherwise preview a few
@@ -1668,6 +1747,8 @@ const settings = $('#settings');
 $('#settings-btn').addEventListener('click', () => {
   $('#set-start').value = state.start;
   $('#set-meet').value = state.meetDay ?? '';
+  alignUndo = null;
+  renderAlignNote();
   renderShareSummary();
   $('#set-translation').value = state.translation;
   renderListening();
@@ -1681,19 +1762,54 @@ $('#settings-btn').addEventListener('click', () => {
 });
 $('#settings-close').addEventListener('click', () => settings.close());
 
-$('#set-start').addEventListener('change', (e) => {
-  if (!e.target.value) return;
-  state.start = e.target.value;
+function setStart(iso) {
+  state.start = iso;
+  $('#set-start').value = iso;
   save();
   render();
+  renderAlignNote();
   renderShareSummary();
+}
+
+$('#set-start').addEventListener('change', (e) => {
+  if (!e.target.value) return;
+  alignUndo = null;
+  setStart(e.target.value);
 });
 $('#set-meet').addEventListener('change', (e) => {
   state.meetDay = e.target.value === '' ? null : +e.target.value;
   weekOffset = 0;
-  save();
-  render();
-  renderShareSummary();
+  // Keep each group week to one plan week by moving the start to fit the new day.
+  const prev = state.start;
+  alignUndo = isAligned() ? null : prev;
+  setStart(isAligned() ? prev : nearestAligned(prev, state.meetDay));
+});
+
+// Start date before the meeting day (or the button below) moved it, for Undo.
+let alignUndo = null;
+
+function renderAlignNote() {
+  const misaligned = !isAligned();
+  $('#align-note').hidden = !alignUndo && !misaligned;
+  if (alignUndo) {
+    $('#align-text').textContent = `Start moved from ${fmtShort.format(localDate(alignUndo))} to ${fmtShort.format(dateForIndex(0))} so each group week is one plan week (7 readings).`;
+    $('#align-btn').textContent = 'Undo';
+  } else if (misaligned) {
+    const fix = nearestAligned(state.start, state.meetDay);
+    $('#align-text').textContent = `Plan weeks begin on ${WEEKDAYS[dateForIndex(0).getDay()]}s but your group weeks begin on ${WEEKDAYS[(state.meetDay + 1) % 7]}s, so each group week mixes two plan weeks. If your group shares a start date, change it together.`;
+    $('#align-btn').textContent = `Start ${fmtShort.format(localDate(fix))} instead`;
+  }
+}
+
+$('#align-btn').addEventListener('click', () => {
+  if (alignUndo) {
+    const back = alignUndo;
+    alignUndo = null;
+    setStart(back);
+  } else {
+    alignUndo = state.start;
+    setStart(nearestAligned(state.start, state.meetDay));
+  }
 });
 $('#set-translation').innerHTML = [...BIBLES]
   .sort((a, b) => a.name.localeCompare(b.name))

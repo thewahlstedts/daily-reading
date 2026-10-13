@@ -75,7 +75,12 @@
       <p class="week-meta" id="week-meta"></p>
       <div class="bar week-bar"><div class="fill" id="week-fill"></div></div>
       <ul class="list" id="week-list"></ul>
+      <button class="btn ghost review-btn" id="summary-btn" type="button" hidden></button>
       <button class="btn ghost review-btn" id="review-btn" type="button"></button>
+    </section>
+
+    <section id="summary-entry" hidden>
+      <button class="btn ghost review-btn" id="summary-solo-btn" type="button" hidden></button>
     </section>
 
     <section id="marks-entry" hidden>
@@ -154,6 +159,21 @@
       <span class="spacer"></span>
     </div>
     <article class="commentary-body" id="commentary-body"></article>
+  </dialog>
+
+  <!-- Summary of a plan week -->
+  <dialog id="summary" tabindex="-1" class="sheet">
+    <div class="sheet-head">
+      <button class="icon-btn" id="summary-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="sheet-title">
+        <h2 id="summary-title">Week</h2>
+        <p class="eyebrow" id="summary-sub"></p>
+      </div>
+      <span class="spacer"></span>
+    </div>
+    <article class="commentary-body summary-body" id="summary-body"></article>
   </dialog>
 
   <!-- Getting started (first visit) -->
@@ -325,7 +345,7 @@
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
       </button>
       <div class="sheet-title">
-        <h2>Marked verses</h2>
+        <h2>Verses to discuss</h2>
         <p class="eyebrow" id="review-sub"></p>
       </div>
       <span class="spacer"></span>
@@ -406,6 +426,10 @@
               <option value="6">Saturday</option>
             </select>
           </label>
+          <div class="set-row stacked" id="align-note" hidden>
+            <small id="align-text"></small>
+            <button class="btn ghost" id="align-btn" type="button"></button>
+          </div>
           <div class="set-row stacked">
             <span class="set-text"><span class="set-name">Share with your group</span><small id="share-summary"></small></span>
             <button class="btn ghost" id="share-btn-settings" type="button">Share plan</button>
