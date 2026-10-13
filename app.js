@@ -331,7 +331,7 @@ async function loadSummary(n) {
 function setSummaryButton(btn, n) {
   btn.dataset.week = n ?? '';
   btn.hidden = !summaries[n]?.length;
-  btn.textContent = `Week ${n} summary`;
+  btn.textContent = 'Summary';
   if (n == null || summaries[n]) return;
   loadSummary(n).then((paras) => {
     if (btn.dataset.week === String(n)) btn.hidden = !paras.length;
