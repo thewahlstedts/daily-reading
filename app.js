@@ -262,18 +262,62 @@ function renderWeek(t) {
     : [range, 'Outside the plan']).map((x) => `<span>${x}</span>`).join(' · ');
   $('#week-fill').style.width = idxs.length ? `${(done / idxs.length) * 100}%` : '0';
   $('#week-list').innerHTML = idxs.map((i) => itemHtml(i, t, dueBefore())).join('');
-  const marked = marksIn(w.startIdx, w.endIdx).length;
-  $('#review-btn').textContent = marked ? `Verses to discuss (${marked})` : 'No verses to discuss yet';
-  $('#review-btn').disabled = !marked;
-  // The summary for the plan week holding most of this group week's readings.
-  setSummaryButton($('#summary-btn'), idxs.length ? planWeek(idxs[idxs.length >> 1]) : null);
+  setReviewButton($('#review-btn'), w);
+  // On meeting day both buttons move up to the meeting card; when this week's
+  // summary is in the today card (nothing read yet), it isn't repeated here.
+  const meeting = weekOffset === 0 && w.daysToMeet === 0;
+  $('#review-btn').hidden = meeting;
+  const n = summaryWeek(w);
+  setSummaryButton($('#summary-btn'), meeting || n === summaryInCard ? null : n);
   return weekWindow(0);
+}
+
+// The plan week holding most of a group week's readings.
+function summaryWeek(w) {
+  const mid = Math.min(Math.max(w.startIdx + 3, 0), plan.length - 1);
+  return mid >= w.startIdx && mid <= w.endIdx ? planWeek(mid) : null;
+}
+
+function setReviewButton(btn, w) {
+  const marked = marksIn(w.startIdx, w.endIdx).length;
+  btn.textContent = marked ? `Verses to discuss (${marked})` : 'No verses to discuss yet';
+  btn.disabled = !marked;
+}
+
+// The group week holding reading i (same shape as weekWindow()).
+function groupWeekOf(i) {
+  const endIdx = i + (state.meetDay - dateForIndex(i).getDay() + 7) % 7;
+  return { startIdx: endIdx - 6, endIdx };
+}
+
+// The summary to offer with reading i: its week's, while none of that week is read yet.
+function startingSummary(i) {
+  if (state.meetDay == null) {
+    for (let j = i - i % 7; j < i - i % 7 + 7; j++) if (isRead(j)) return null;
+    return planWeek(i);
+  }
+  if (weekWindow(0).daysToMeet === 0) return null;   // the meeting card has the summary
+  const w = groupWeekOf(i);
+  for (let j = Math.max(w.startIdx, 0); j <= w.endIdx; j++) if (isRead(j)) return null;
+  return summaryWeek(w);
+}
+
+// Meeting day: the week's verses to discuss and summary, up top.
+function renderMeeting() {
+  const w = weekWindow(0);
+  const n = w?.daysToMeet === 0 ? summaryWeek(w) : null;   // null outside the plan
+  $('#meeting-card').hidden = n == null;
+  if (n == null) return;
+  $('#meeting-title').textContent = weekLabel(Math.max(w.startIdx, 0), Math.min(w.endIdx, plan.length - 1));
+  setReviewButton($('#meeting-review-btn'), w);
+  setSummaryButton($('#meeting-summary-btn'), n);
 }
 
 // ---------- Week summaries ----------
 
 // summaries/week-NN.txt: plain text, one per plan week, paragraphs separated by blank lines.
 const summaries = {};   // plan week -> paragraphs ([] if there's no summary)
+let summaryInCard = null;   // plan week whose summary the today card offers
 
 async function loadSummary(n) {
   if (summaries[n]) return summaries[n];
@@ -287,7 +331,7 @@ async function loadSummary(n) {
 function setSummaryButton(btn, n) {
   btn.dataset.week = n ?? '';
   btn.hidden = !summaries[n]?.length;
-  btn.textContent = `Week ${n} summary`;
+  btn.textContent = 'Summary';
   if (n == null || summaries[n]) return;
   loadSummary(n).then((paras) => {
     if (btn.dataset.week === String(n)) btn.hidden = !paras.length;
@@ -310,7 +354,7 @@ async function openSummary(n) {
   body.scrollTop = 0;
 }
 
-for (const id of ['#summary-btn', '#summary-solo-btn']) {
+for (const id of ['#summary-btn', '#summary-solo-btn', '#meeting-summary-btn']) {
   $(id).addEventListener('click', (e) => openSummary(+e.currentTarget.dataset.week).catch(() => {}));
 }
 $('#summary-close').addEventListener('click', () => summaryDialog.close());
@@ -424,6 +468,10 @@ let reviewRange = null; // { from, to, label } or null for all
 $('#review-btn').addEventListener('click', () => {
   const w = weekWindow(weekOffset);
   openReview({ from: w.startIdx, to: w.endIdx, label: `${$('#week-title').textContent} · ${fmtDay.format(dateForIndex(w.startIdx))} – ${fmtDay.format(w.meet)}` });
+});
+$('#meeting-review-btn').addEventListener('click', () => {
+  const w = weekWindow(0);
+  openReview({ from: w.startIdx, to: w.endIdx, label: `Meeting today · ${$('#meeting-title').textContent}` });
 });
 $('#review-all-btn').addEventListener('click', () => openReview(null));
 $('#review-close').addEventListener('click', () => review.close());
@@ -643,6 +691,7 @@ function render() {
   // Featured card: always the earliest reading not yet done.
   const next = plan.findIndex((_, i) => !isRead(i));
   const card = $('#today-card');
+  summaryInCard = null;
   if (next === -1) {
     card.innerHTML = `<p class="eyebrow done">Plan complete</p>
       <p class="ref">Well done</p>
@@ -661,7 +710,12 @@ function render() {
       <div class="actions">
         <button class="btn primary" data-open="${next}">Read</button>
         <button class="btn primary" data-listen="${next}">Listen</button>
+        <button class="btn ghost" id="summary-today-btn" type="button" hidden></button>
       </div>`;
+    // Before the first reading of a week, offer that week's summary.
+    summaryInCard = startingSummary(next);
+    setSummaryButton($('#summary-today-btn'), summaryInCard);
+    $('#summary-today-btn').addEventListener('click', (e) => openSummary(+e.currentTarget.dataset.week).catch(() => {}));
   }
 
   // Catch up (the featured reading is already shown above)
@@ -670,13 +724,14 @@ function render() {
   $('#behind-list').innerHTML = others.map((i) => itemHtml(i, t, due)).join('');
 
   // Group week (its readings aren't repeated in the list below)
+  renderMeeting();
   const week = renderWeek(t);
   const markCount = Object.keys(state.marks).length;
   $('#marks-entry').hidden = Boolean(week) || !markCount;
   $('#review-all-btn').textContent = `Verses to discuss (${markCount})`;
   // Without a group, the summary for the plan week of the next reading.
   $('#summary-entry').hidden = Boolean(week) || next < 0;
-  if (!week && next >= 0) setSummaryButton($('#summary-solo-btn'), planWeek(next));
+  if (!week && next >= 0) setSummaryButton($('#summary-solo-btn'), summaryInCard ? null : planWeek(next));
   const after = week ? week.endIdx + 1 : t;
 
   // In a group the week section covers what's next; otherwise preview a few
