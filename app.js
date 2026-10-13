@@ -256,7 +256,9 @@ function renderWeek(t) {
   $('#week-fill').style.width = idxs.length ? `${(done / idxs.length) * 100}%` : '0';
   $('#week-list').innerHTML = idxs.map((i) => itemHtml(i, t, dueBefore())).join('');
   const marked = marksIn(w.startIdx, w.endIdx).length;
-  $('#review-btn').textContent = marked ? `Marked verses (${marked})` : 'No marked verses yet';
+  // Named for the meeting, since that's what this week's marks are for.
+  const meeting = `${WEEKDAYS[state.meetDay]}'s meeting`;
+  $('#review-btn').textContent = marked ? `For ${meeting} (${marked})` : `Mark verses for ${meeting}`;
   $('#review-btn').disabled = !marked;
   return weekWindow(0);
 }
