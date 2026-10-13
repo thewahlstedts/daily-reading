@@ -263,9 +263,7 @@ function renderWeek(t) {
   $('#week-fill').style.width = idxs.length ? `${(done / idxs.length) * 100}%` : '0';
   $('#week-list').innerHTML = idxs.map((i) => itemHtml(i, t, dueBefore())).join('');
   const marked = marksIn(w.startIdx, w.endIdx).length;
-  // Named for the meeting, since that's what this week's marks are for.
-  const meeting = `${WEEKDAYS[state.meetDay]}'s meeting`;
-  $('#review-btn').textContent = marked ? `For ${meeting} (${marked})` : `Mark verses for ${meeting}`;
+  $('#review-btn').textContent = marked ? `Verses to discuss (${marked})` : 'No verses to discuss yet';
   $('#review-btn').disabled = !marked;
   return weekWindow(0);
 }
@@ -394,7 +392,7 @@ async function renderReview() {
   const marks = reviewRange ? marksIn(reviewRange.from, reviewRange.to) : marksIn();
   $('#review-sub').textContent = reviewRange ? reviewRange.label : 'All readings';
   if (!marks.length) {
-    body.innerHTML = '<p class="status">No marked verses here. Tap a verse while reading to mark it.</p>';
+    body.innerHTML = '<p class="status">No verses to discuss here. Tap a verse while reading to mark it.</p>';
     return;
   }
   body.innerHTML = '<p class="status">Loading…</p>';
@@ -629,7 +627,7 @@ function render() {
   const week = renderWeek(t);
   const markCount = Object.keys(state.marks).length;
   $('#marks-entry').hidden = Boolean(week) || !markCount;
-  $('#review-all-btn').textContent = `Marked verses (${markCount})`;
+  $('#review-all-btn').textContent = `Verses to discuss (${markCount})`;
   const after = week ? week.endIdx + 1 : t;
 
   // In a group the week section covers what's next; otherwise preview a few
