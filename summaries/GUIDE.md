@@ -7,7 +7,7 @@ Get a week's readings and text with `python3 -I tools/week_text.py <N>` (`--refs
 ## Format
 
 - Plain UTF-8 text, no Markdown. Paragraphs separated by one blank line; no headings, lists, links or quotes longer than a few words.
-- 2–4 paragraphs, about 350–550 words (a week is seven or more chapters).
+- 2–4 paragraphs, about 400–650 words (a week is seven or more chapters).
 - No title line; the app shows "Week N" and the readings.
 
 ## Content
