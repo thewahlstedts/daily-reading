@@ -1,12 +1,12 @@
 // App shell: network-first so updates show up, falling back to cache offline
 // (or when the network is too slow to answer).
 // Scripture and bundled Bibles: cache-first, so they work offline.
-const SHELL = 'daily-reading-shell-v51';
+const SHELL = 'daily-reading-shell-v52';
 const TEXT = 'daily-reading-text-v2';
 // Bundled Bibles live outside the shell cache so app updates don't wipe them.
 // Bump this when the files in bibles/ are regenerated.
 const BIBLES = 'daily-reading-bibles-v2';
-const SHELL_FILES = ['./', 'index.html', 'theme-init.js', 'copyright.html', 'styles.css', 'app.js', 'sync.js', 'reminder.js', 'onboarding.js', 'vendor/supabase-2.117.1.js', 'plan.txt', 'manifest.webmanifest', 'icon.svg', 'favicon.svg', 'favicon-32.png', 'icon-180.png', 'icon-512.png', 'badge-96.png',
+const SHELL_FILES = ['./', 'index.html', 'theme-init.js', 'copyright.html', 'styles.css', 'app.js', 'sync.js', 'reminder.js', 'onboarding.js', 'vendor/supabase-2.117.1.js', 'plan.txt', 'manifest.webmanifest', 'icon.svg', 'favicon.svg', 'favicon-32.png', 'icon-180.png', 'icon-512.png', 'badge-96.png', 'silence.wav',
   'vendor/fonts/literata-latin-400-normal.woff2', 'vendor/fonts/literata-latin-400-italic.woff2', 'vendor/fonts/literata-latin-600-normal.woff2',
   'vendor/fonts/atkinson-hyperlegible-latin-400-normal.woff2', 'vendor/fonts/atkinson-hyperlegible-latin-400-italic.woff2', 'vendor/fonts/atkinson-hyperlegible-latin-700-normal.woff2',
   // Every plan week's summary (small text files), so they all work offline. All 52 must exist.
