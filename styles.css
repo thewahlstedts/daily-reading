@@ -163,6 +163,7 @@ section > h2, .section-head { margin-bottom: 10px; }
 .week-nav .icon-btn { padding: 4px; }
 .week-meta { margin: 0 0 8px; color: var(--muted); font-size: 14px; }
 .week-meta strong { color: var(--ink); font-weight: 600; }
+.week-meta > span { white-space: nowrap; }
 .week-bar { margin-bottom: 10px; }
 .week-bar .fill { background: var(--done); }
 #behind h2, .eyebrow.late { color: var(--late); }

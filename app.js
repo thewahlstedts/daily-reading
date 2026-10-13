@@ -233,6 +233,7 @@ function dueBefore() {
 }
 
 const fmtDay = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+const fmtRange = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 
 function renderWeek(t) {
   const w = weekWindow(weekOffset);
@@ -242,17 +243,23 @@ function renderWeek(t) {
   for (let i = Math.max(0, w.startIdx); i <= Math.min(plan.length - 1, w.endIdx); i++) idxs.push(i);
   const done = idxs.filter(isRead).length;
 
-  $('#week-title').textContent = weekOffset === 0 ? 'This week' : weekOffset === -1 ? 'Last week' : weekOffset === 1 ? 'Next week' : `Week of ${fmtShort.format(dateForIndex(w.startIdx))}`;
+  // The plan week goes in the title; further out, it replaces "Week of …" since the dates are in the meta line.
+  const near = ['Last week', 'This week', 'Next week'][weekOffset + 1];
+  const planLabel = idxs.length ? weekLabel(idxs[0], idxs[idxs.length - 1]) : '';
+  $('#week-title').textContent = near && planLabel ? `${near} · ${planLabel}`
+    : near || planLabel || `Week of ${fmtShort.format(dateForIndex(w.startIdx))}`;
   $('#week-today').hidden = weekOffset === 0;
-  const range = `${fmtDay.format(dateForIndex(w.startIdx))} – ${fmtDay.format(w.meet)}`;
+  // Short range ("Oct 15 – 21"): the list already shows each day, and the line should fit a phone.
+  const range = fmtRange.formatRange(dateForIndex(w.startIdx), w.meet);
   let when;
   if (w.daysToMeet === 0) when = 'Meeting today';
   else if (w.daysToMeet === 1) when = 'Meeting tomorrow';
   else if (w.daysToMeet > 1) when = `Meeting in ${w.daysToMeet} days`;
   else when = `Met ${fmtDay.format(w.meet)}`;
-  $('#week-meta').innerHTML = idxs.length
-    ? `${weekLabel(idxs[0], idxs[idxs.length - 1])} · ${range} · <strong>${done} of ${idxs.length} read</strong> · ${when}`
-    : `${range} · Outside the plan`;
+  // Each part stays whole (white-space: nowrap) so a narrow screen breaks only at the dots.
+  $('#week-meta').innerHTML = (idxs.length
+    ? [range, `<strong>${done} of ${idxs.length} read</strong>`, when]
+    : [range, 'Outside the plan']).map((x) => `<span>${x}</span>`).join(' · ');
   $('#week-fill').style.width = idxs.length ? `${(done / idxs.length) * 100}%` : '0';
   $('#week-list').innerHTML = idxs.map((i) => itemHtml(i, t, dueBefore())).join('');
   const marked = marksIn(w.startIdx, w.endIdx).length;
