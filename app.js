@@ -145,10 +145,12 @@ function dayNumber(iso) {
   return Date.UTC(y, m - 1, d) / 86400000;
 }
 
-function dateForIndex(i) {
-  const [y, m, d] = state.start.split('-').map(Number);
-  return new Date(y, m - 1, d + i);
+function localDate(iso, plusDays = 0) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d + plusDays);
 }
+
+const dateForIndex = (i) => localDate(state.start, i);
 
 function todayIndex() {
   return dayNumber(isoDate(new Date())) - dayNumber(state.start);
@@ -204,6 +206,26 @@ function weekWindow(offset = 0) {
   return { startIdx: endIdx - 6, endIdx, meet: end, daysToMeet: toMeet + offset * 7 };
 }
 
+// The plan is 52 weeks of 7 readings. "Week N" is the same 7 readings for every
+// group; only the calendar days differ, so weekly material can be keyed to it.
+const planWeek = (i) => Math.floor(i / 7) + 1;
+
+// A start on the day after the meeting day makes each group week exactly one plan week.
+function isAligned(start = state.start, meetDay = state.meetDay) {
+  return meetDay == null || localDate(start).getDay() === (meetDay + 1) % 7;
+}
+
+// The aligned start nearest to `start` (at most 3 days earlier or later).
+function nearestAligned(start, meetDay) {
+  const ahead = ((meetDay + 1) % 7 - localDate(start).getDay() + 7) % 7;
+  return isoDate(localDate(start, ahead > 3 ? ahead - 7 : ahead));
+}
+
+function weekLabel(from, to) {
+  const a = planWeek(from), b = planWeek(to);
+  return a === b ? `Week ${a}` : `Weeks ${a}–${b}`;
+}
+
 // Index before which unread readings count as behind.
 function dueBefore() {
   const w = weekWindow(0);
@@ -229,7 +251,7 @@ function renderWeek(t) {
   else if (w.daysToMeet > 1) when = `Meeting in ${w.daysToMeet} days`;
   else when = `Met ${fmtDay.format(w.meet)}`;
   $('#week-meta').innerHTML = idxs.length
-    ? `${range} · <strong>${done} of ${idxs.length} read</strong> · ${when}`
+    ? `${weekLabel(idxs[0], idxs[idxs.length - 1])} · ${range} · <strong>${done} of ${idxs.length} read</strong> · ${when}`
     : `${range} · Outside the plan`;
   $('#week-fill').style.width = idxs.length ? `${(done / idxs.length) * 100}%` : '0';
   $('#week-list').innerHTML = idxs.map((i) => itemHtml(i, t, dueBefore())).join('');
@@ -1668,6 +1690,8 @@ const settings = $('#settings');
 $('#settings-btn').addEventListener('click', () => {
   $('#set-start').value = state.start;
   $('#set-meet').value = state.meetDay ?? '';
+  alignUndo = null;
+  renderAlignNote();
   renderShareSummary();
   $('#set-translation').value = state.translation;
   renderListening();
@@ -1681,19 +1705,54 @@ $('#settings-btn').addEventListener('click', () => {
 });
 $('#settings-close').addEventListener('click', () => settings.close());
 
-$('#set-start').addEventListener('change', (e) => {
-  if (!e.target.value) return;
-  state.start = e.target.value;
+function setStart(iso) {
+  state.start = iso;
+  $('#set-start').value = iso;
   save();
   render();
+  renderAlignNote();
   renderShareSummary();
+}
+
+$('#set-start').addEventListener('change', (e) => {
+  if (!e.target.value) return;
+  alignUndo = null;
+  setStart(e.target.value);
 });
 $('#set-meet').addEventListener('change', (e) => {
   state.meetDay = e.target.value === '' ? null : +e.target.value;
   weekOffset = 0;
-  save();
-  render();
-  renderShareSummary();
+  // Keep each group week to one plan week by moving the start to fit the new day.
+  const prev = state.start;
+  alignUndo = isAligned() ? null : prev;
+  setStart(isAligned() ? prev : nearestAligned(prev, state.meetDay));
+});
+
+// Start date before the meeting day (or the button below) moved it, for Undo.
+let alignUndo = null;
+
+function renderAlignNote() {
+  const misaligned = !isAligned();
+  $('#align-note').hidden = !alignUndo && !misaligned;
+  if (alignUndo) {
+    $('#align-text').textContent = `Start moved from ${fmtShort.format(localDate(alignUndo))} to ${fmtShort.format(dateForIndex(0))} so each group week is one plan week (7 readings).`;
+    $('#align-btn').textContent = 'Undo';
+  } else if (misaligned) {
+    const fix = nearestAligned(state.start, state.meetDay);
+    $('#align-text').textContent = `Plan weeks begin on ${WEEKDAYS[dateForIndex(0).getDay()]}s but your group weeks begin on ${WEEKDAYS[(state.meetDay + 1) % 7]}s, so each group week mixes two plan weeks. If your group shares a start date, change it together.`;
+    $('#align-btn').textContent = `Start ${fmtShort.format(localDate(fix))} instead`;
+  }
+}
+
+$('#align-btn').addEventListener('click', () => {
+  if (alignUndo) {
+    const back = alignUndo;
+    alignUndo = null;
+    setStart(back);
+  } else {
+    alignUndo = state.start;
+    setStart(nearestAligned(state.start, state.meetDay));
+  }
 });
 $('#set-translation').innerHTML = [...BIBLES]
   .sort((a, b) => a.name.localeCompare(b.name))
