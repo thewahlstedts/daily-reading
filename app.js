@@ -661,7 +661,6 @@ function render() {
       <div class="actions">
         <button class="btn primary" data-open="${next}">Read</button>
         <button class="btn primary" data-listen="${next}">Listen</button>
-        <button class="btn ghost" data-toggle="${next}">Mark read</button>
       </div>`;
   }
 
