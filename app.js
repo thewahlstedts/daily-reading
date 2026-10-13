@@ -265,8 +265,55 @@ function renderWeek(t) {
   const marked = marksIn(w.startIdx, w.endIdx).length;
   $('#review-btn').textContent = marked ? `Verses to discuss (${marked})` : 'No verses to discuss yet';
   $('#review-btn').disabled = !marked;
+  // The summary for the plan week holding most of this group week's readings.
+  setSummaryButton($('#summary-btn'), idxs.length ? planWeek(idxs[idxs.length >> 1]) : null);
   return weekWindow(0);
 }
+
+// ---------- Week summaries ----------
+
+// summaries/week-NN.txt: plain text, one per plan week, paragraphs separated by blank lines.
+const summaries = {};   // plan week -> paragraphs ([] if there's no summary)
+
+async function loadSummary(n) {
+  if (summaries[n]) return summaries[n];
+  const res = await fetch(`summaries/week-${String(n).padStart(2, '0')}.txt`);
+  if (!res.ok) return (summaries[n] = []);
+  const text = await res.text();
+  return (summaries[n] = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean));
+}
+
+// Shows the button once the week's summary is known to exist (immediately if loaded before).
+function setSummaryButton(btn, n) {
+  btn.dataset.week = n ?? '';
+  btn.hidden = !summaries[n]?.length;
+  btn.textContent = `Week ${n} summary`;
+  if (n == null || summaries[n]) return;
+  loadSummary(n).then((paras) => {
+    if (btn.dataset.week === String(n)) btn.hidden = !paras.length;
+  }).catch(() => {});   // offline and not cached: no button
+}
+
+const summaryDialog = $('#summary');
+
+async function openSummary(n) {
+  const first = plan[(n - 1) * 7], last = plan[Math.min(n * 7, plan.length) - 1];
+  $('#summary-title').textContent = `Week ${n}`;
+  $('#summary-sub').textContent = `${first.ref} – ${last.ref}`;
+  const body = $('#summary-body');
+  body.replaceChildren(...(await loadSummary(n)).map((text) => {
+    const p = document.createElement('p');
+    p.textContent = text;
+    return p;
+  }));
+  openSheet(summaryDialog);
+  body.scrollTop = 0;
+}
+
+for (const id of ['#summary-btn', '#summary-solo-btn']) {
+  $(id).addEventListener('click', (e) => openSummary(+e.currentTarget.dataset.week).catch(() => {}));
+}
+$('#summary-close').addEventListener('click', () => summaryDialog.close());
 
 // ---------- Marked verses ----------
 
@@ -628,6 +675,9 @@ function render() {
   const markCount = Object.keys(state.marks).length;
   $('#marks-entry').hidden = Boolean(week) || !markCount;
   $('#review-all-btn').textContent = `Verses to discuss (${markCount})`;
+  // Without a group, the summary for the plan week of the next reading.
+  $('#summary-entry').hidden = Boolean(week) || next < 0;
+  if (!week && next >= 0) setSummaryButton($('#summary-solo-btn'), planWeek(next));
   const after = week ? week.endIdx + 1 : t;
 
   // In a group the week section covers what's next; otherwise preview a few
