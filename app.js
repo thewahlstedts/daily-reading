@@ -733,8 +733,21 @@ document.addEventListener('click', (e) => {
     openReader(+el.dataset.open, false);
   } else if (el.dataset.listen != null) {
     openReader(+el.dataset.listen, true);
+    unlockPlayback();
   }
 });
+
+// iPhone Safari only lets audio and speech start from a tap, and Listen starts
+// them after the text has loaded. Starting both silently during the tap lets
+// the later play() and speak() through. Only safe once openReader() has reset
+// the narration, since it replaces whatever the audio element had loaded.
+function unlockPlayback() {
+  narrationAudio.src = 'silence.wav';
+  narrationAudio.play().catch(() => {});
+  const u = new SpeechSynthesisUtterance(' ');
+  u.volume = 0;
+  speechSynthesis.speak(u);
+}
 
 // Mark every overdue reading as read, with a short window to undo.
 let undoCatchUp = null;
@@ -1534,7 +1547,8 @@ narrationAudio.addEventListener('timeupdate', () => {
 });
 
 narrationAudio.addEventListener('ended', () => {
-  if (!current?.narration) return;
+  // narrationChapter is -1 for the silent unlock clip, not a chapter recording.
+  if (!current?.narration || narrationChapter < 0) return;
   const nextChapter = narrationChapter + 1;
   if (nextChapter >= current.narration.length) {
     narrationChapter = -1;
