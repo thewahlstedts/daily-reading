@@ -8,6 +8,9 @@ const $ = (sel) => document.querySelector(sel);
 function openSheet(d) {
   if (d.open) return;
   d.showModal();
+  // Open at the top: a closed sheet keeps its scroll position, so it would
+  // otherwise reopen wherever it was left.
+  d.querySelectorAll('*').forEach((el) => { if (el.scrollTop) el.scrollTop = 0; });
   d.focus();
 }
 
