@@ -60,13 +60,15 @@
     <section class="card today" id="today-card"></section>
 
     <section class="card today meeting" id="meeting-card" hidden>
+      <button class="icon-btn meeting-close" id="meeting-done-btn" type="button" aria-label="Close (meeting's over)">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
       <p class="eyebrow">Meeting today</p>
       <p class="ref" id="meeting-title"></p>
       <div class="actions">
         <button class="btn primary" id="meeting-review-btn" type="button"></button>
         <button class="btn ghost" id="meeting-summary-btn" type="button" hidden></button>
       </div>
-      <button class="link-btn meeting-done" id="meeting-done-btn" type="button">Meeting's over</button>
     </section>
 
     <section id="week" hidden>
@@ -383,7 +385,7 @@
   <!-- Confirm before closing the meeting card -->
   <dialog id="meeting-dialog" class="note-dialog" aria-labelledby="meeting-dialog-title">
     <form id="meeting-form">
-      <h2 id="meeting-dialog-title">Meeting over?</h2>
+      <h2 id="meeting-dialog-title">Is the meeting over?</h2>
       <small>This closes the meeting card for today. The summary and verses to discuss will still be in this week's section.</small>
       <div class="row note-actions">
         <button class="btn ghost" type="button" id="meeting-cancel">Not yet</button>
@@ -414,6 +416,18 @@
       <div class="row note-actions">
         <button class="btn ghost" type="button" id="feedback-cancel">Cancel</button>
         <button class="btn primary" type="submit" id="feedback-send">Send</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Before a sync that would remove a lot from the account (sync.js) -->
+  <dialog id="sync-guard" class="note-dialog" aria-labelledby="sync-guard-title">
+    <form method="dialog">
+      <h2 id="sync-guard-title">Remove from your account?</h2>
+      <small id="sync-guard-text"></small>
+      <div class="row note-actions">
+        <button class="btn ghost" type="button" id="sync-guard-replace">Remove them</button>
+        <button class="btn primary" type="button" id="sync-guard-keep">Keep account's copy</button>
       </div>
     </form>
   </dialog>

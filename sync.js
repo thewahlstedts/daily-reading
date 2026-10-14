@@ -49,10 +49,30 @@ window.onStateSaved = () => {
 
 const OFFLINE = "Offline — changes will sync when you're back online";
 
-async function push() {
+// Losing this many marks or checkmarks in one push is more likely stale or
+// test data on this device than something the person did, so ask first.
+function bigLoss(data) {
+  let before;
+  try { before = JSON.parse(meta.pushed || 'null'); } catch {}
+  if (!before) return null;
+  const lost = (a, b) => Object.keys(a || {}).filter((k) => !(k in (b || {}))).length;
+  const marks = lost(before.marks, data.marks), was = Object.keys(before.marks || {}).length;
+  const read = lost(before.read, data.read), wasRead = Object.keys(before.read || {}).length;
+  const tooMany = marks >= 8 || (was >= 3 && marks === was) || read >= 14 || (wasRead >= 7 && read > wasRead / 2);
+  return tooMany ? { marks, read } : null;
+}
+
+const guardDialog = $('#sync-guard');
+
+async function push({ force = false } = {}) {
   if (!user) return;
   if (!navigator.onLine) return setStatus(OFFLINE);
   const data = syncedSnapshot();
+  if (!force) {
+    if (guardDialog.open) return;
+    const loss = bigLoss(data);
+    if (loss) return confirmLoss(loss);
+  }
   setStatus('Syncing…');
   const { data: row, error } = await sb
     .from('progress')
@@ -106,18 +126,46 @@ async function pull({ firstSignIn = false } = {}) {
     return push();
   }
 
-  if (remoteNewer) {
-    syncing = true;
-    SYNCED_FIELDS.forEach((k) => { if (k in remote) state[k] = remote[k]; });
-    save();
-    syncing = false;
-    meta.pushed = JSON.stringify(syncedSnapshot());
-    meta.remoteAt = row.updated_at;
-    saveMeta();
-    render();
-  }
+  if (remoteNewer) applyRemote(remote, row.updated_at);
   setStatus();
 }
+
+// Replace this device's synced fields with the account's copy.
+function applyRemote(remote, updatedAt) {
+  syncing = true;
+  SYNCED_FIELDS.forEach((k) => { if (k in remote) state[k] = remote[k]; });
+  save();
+  syncing = false;
+  meta.pushed = JSON.stringify(syncedSnapshot());
+  meta.remoteAt = updatedAt;
+  saveMeta();
+  render();
+}
+
+function confirmLoss({ marks, read }) {
+  const parts = [];
+  if (marks) parts.push(`${marks} marked ${marks === 1 ? 'verse' : 'verses'}`);
+  if (read) parts.push(`${read} ${read === 1 ? 'checkmark' : 'checkmarks'}`);
+  $('#sync-guard-text').textContent = `Syncing this device would remove ${parts.join(' and ')} from your account. If you didn't mean to remove them, keep the account's copy.`;
+  setStatus('Waiting to sync');
+  guardDialog.showModal();
+}
+
+$('#sync-guard-replace').addEventListener('click', () => {
+  guardDialog.close();
+  push({ force: true });
+});
+
+$('#sync-guard-keep').addEventListener('click', async () => {
+  guardDialog.close();
+  const { data: row, error } = await sb.from('progress').select('data, updated_at').maybeSingle();
+  if (error || !row) return setStatus("Couldn't reach sync server", true);
+  const clean = sanitizeState(row.data);
+  const remote = {};
+  SYNCED_FIELDS.forEach((k) => { if (row.data && k in row.data) remote[k] = clean[k]; });
+  applyRemote(remote, row.updated_at);
+  setStatus();
+});
 
 // Access token for calling our Supabase functions (licensed Bible text).
 window.getAccessToken = async () => {
