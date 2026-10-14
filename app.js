@@ -30,6 +30,7 @@ const defaults = {
   meetDay: null,       // 0 = Sunday … 6 = Saturday; null = not in a group
   onboarded: false,    // finished (or skipped) the getting-started walkthrough
   ai: 'claude',        // which AI the "Ask" links open (AI_TOOLS id)
+  metOn: '',           // ISO date of a meeting day whose card was closed ("Meeting's over")
   marks: {},           // verses marked for the group: 'PSA.23.1' -> { i: plan index, at: ISO date, t: translation id, n?: note }
 };
 const MAX_NOTE = 1000;
@@ -112,6 +113,7 @@ function sanitizeState(raw) {
   if (str(raw.align, /^[a-z]{1,20}$/)) s.align = raw.align;
   if (Number.isInteger(raw.meetDay) && raw.meetDay >= 0 && raw.meetDay <= 6) s.meetDay = raw.meetDay;
   if (AI_TOOLS.some((t) => t.id === raw.ai)) s.ai = raw.ai;
+  if (str(raw.metOn, /^\d{4}-\d{2}-\d{2}$/)) s.metOn = raw.metOn;
   if (raw.marks && typeof raw.marks === 'object') {
     s.marks = {};
     for (const [k, v] of Object.entries(raw.marks)) {
@@ -226,6 +228,12 @@ function weekLabel(from, to) {
   return a === b ? `Week ${a}` : `Weeks ${a}–${b}`;
 }
 
+// Today is meeting day and the meeting card hasn't been closed.
+function meetingToday() {
+  const w = weekWindow(0);
+  return w?.daysToMeet === 0 && state.metOn !== isoDate(new Date()) ? w : null;
+}
+
 // Index before which unread readings count as behind.
 function dueBefore() {
   const w = weekWindow(0);
@@ -252,7 +260,7 @@ function renderWeek(t) {
   // Short range ("Oct 15 – 21"): the list already shows each day, and the line should fit a phone.
   const range = fmtRange.formatRange(dateForIndex(w.startIdx), w.meet);
   let when;
-  if (w.daysToMeet === 0) when = 'Meeting today';
+  if (w.daysToMeet === 0) when = meetingToday() ? 'Meeting today' : 'Met today';
   else if (w.daysToMeet === 1) when = 'Meeting tomorrow';
   else if (w.daysToMeet > 1) when = `Meeting in ${w.daysToMeet} days`;
   else when = `Met ${fmtDay.format(w.meet)}`;
@@ -265,7 +273,7 @@ function renderWeek(t) {
   setReviewButton($('#review-btn'), w);
   // On meeting day both buttons move up to the meeting card; when this week's
   // summary is in the today card (nothing read yet), it isn't repeated here.
-  const meeting = weekOffset === 0 && w.daysToMeet === 0;
+  const meeting = weekOffset === 0 && Boolean(meetingToday());
   $('#review-btn').hidden = meeting;
   const n = summaryWeek(w);
   setSummaryButton($('#summary-btn'), meeting || n === summaryInCard ? null : n);
@@ -296,18 +304,25 @@ function startingSummary(i) {
     for (let j = i - i % 7; j < i - i % 7 + 7; j++) if (isRead(j)) return null;
     return planWeek(i);
   }
-  if (weekWindow(0).daysToMeet === 0) return null;   // the meeting card has the summary
+  if (meetingToday()) return null;   // the meeting card has the summary
   const w = groupWeekOf(i);
   for (let j = Math.max(w.startIdx, 0); j <= w.endIdx; j++) if (isRead(j)) return null;
   return summaryWeek(w);
 }
 
-// Meeting day: the week's verses to discuss and summary, up top.
+// Meeting day: the week's verses to discuss and summary, up top. Once the
+// week is read, the meeting is what's next, so it goes above the next reading
+// (next week's, which only makes sense after the meeting).
 function renderMeeting() {
-  const w = weekWindow(0);
-  const n = w?.daysToMeet === 0 ? summaryWeek(w) : null;   // null outside the plan
-  $('#meeting-card').hidden = n == null;
+  const w = meetingToday();
+  const n = w ? summaryWeek(w) : null;   // null outside the plan
+  const card = $('#meeting-card');
+  card.hidden = n == null;
   if (n == null) return;
+  let weekRead = true;
+  for (let i = Math.max(w.startIdx, 0); i <= Math.min(w.endIdx, plan.length - 1); i++) if (!isRead(i)) weekRead = false;
+  if (weekRead) $('#today-card').before(card);
+  else $('#today-card').after(card);
   $('#meeting-title').textContent = weekLabel(Math.max(w.startIdx, 0), Math.min(w.endIdx, plan.length - 1));
   setReviewButton($('#meeting-review-btn'), w);
   setSummaryButton($('#meeting-summary-btn'), n);
@@ -474,6 +489,19 @@ $('#meeting-review-btn').addEventListener('click', () => {
   openReview({ from: w.startIdx, to: w.endIdx, label: `Meeting today · ${$('#meeting-title').textContent}` });
 });
 $('#review-all-btn').addEventListener('click', () => openReview(null));
+
+// Closing the meeting card asks first: it doesn't come back that day (the
+// summary and verses to discuss move back to the week section).
+const meetingDialog = $('#meeting-dialog');
+$('#meeting-done-btn').addEventListener('click', () => meetingDialog.showModal());
+$('#meeting-cancel').addEventListener('click', () => meetingDialog.close());
+$('#meeting-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  meetingDialog.close();
+  state.metOn = isoDate(new Date());
+  save();
+  render();
+});
 $('#review-close').addEventListener('click', () => review.close());
 
 function openReview(range) {

@@ -8,7 +8,7 @@
 const SUPABASE_URL = 'https://rnpuwanpgundhfmvzrne.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_bBXg37-lo3GlX-uQorMfDA_0PKEsVwJ'; // publishable: safe in the browser, access is enforced by RLS
 const SYNC_KEY = 'daily-reading:sync';
-const SYNCED_FIELDS = ['start', 'read', 'translation', 'automark', 'meetDay', 'marks', 'onboarded', 'ai'];
+const SYNCED_FIELDS = ['start', 'read', 'translation', 'automark', 'meetDay', 'marks', 'onboarded', 'ai', 'metOn'];
 
 window.SUPABASE_KEY = SUPABASE_KEY;
 

@@ -66,6 +66,7 @@
         <button class="btn primary" id="meeting-review-btn" type="button"></button>
         <button class="btn ghost" id="meeting-summary-btn" type="button" hidden></button>
       </div>
+      <button class="link-btn meeting-done" id="meeting-done-btn" type="button">Meeting's over</button>
     </section>
 
     <section id="week" hidden>
@@ -375,6 +376,18 @@
       <div class="row note-actions">
         <button class="btn ghost" type="button" id="unmark-cancel">Cancel</button>
         <button class="btn primary" type="submit">Unmark</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Confirm before closing the meeting card -->
+  <dialog id="meeting-dialog" class="note-dialog" aria-labelledby="meeting-dialog-title">
+    <form id="meeting-form">
+      <h2 id="meeting-dialog-title">Meeting over?</h2>
+      <small>This closes the meeting card for today. The summary and verses to discuss will still be in this week's section.</small>
+      <div class="row note-actions">
+        <button class="btn ghost" type="button" id="meeting-cancel">Not yet</button>
+        <button class="btn primary" type="submit">Close meeting</button>
       </div>
     </form>
   </dialog>

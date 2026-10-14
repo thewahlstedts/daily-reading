@@ -94,6 +94,7 @@ button { font: inherit; color: inherit; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 22px; margin-bottom: 28px; }
 .today .ref { font-family: var(--serif); font-size: 34px; line-height: 1.15; margin: 6px 0 18px; }
 .today .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.meeting .meeting-done { margin-top: 14px; }
 .today .note { color: var(--muted); margin: 0 0 16px; font-size: 15px; }
 
 section > h2, .section-head { margin-bottom: 10px; }
