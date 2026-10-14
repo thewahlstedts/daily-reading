@@ -221,6 +221,8 @@ dialog::backdrop { background: rgba(0,0,0,.3); }
 .verse sup, .sample sup { font-family: var(--sans); font-size: .55em; color: var(--accent); margin-right: 3px; font-weight: 600; }
 .verse.speaking { background: var(--highlight); }
 .commentary-body { flex: 1; overflow-y: auto; padding: 20px 16px 40px; max-width: 680px; width: 100%; margin: 0 auto; font-family: var(--read-font); font-size: calc(var(--read-size) * .85); line-height: var(--read-leading); overflow-wrap: anywhere; }
+.summary-body { font-size: var(--read-size); }
+.summary-body p { text-align: var(--read-align); hyphens: var(--read-hyphens); -webkit-hyphens: var(--read-hyphens); }
 .commentary-body h3 { font-size: .75em; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 28px 0 8px; font-weight: 600; }
 .commentary-body h3:first-child, .comm-intro + h3 { margin-top: 0; }
 .comm-note { margin: 0; padding: .7em 0 .2em; }
