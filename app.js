@@ -1152,7 +1152,7 @@ async function openReader(index, autoplay) {
     current.narration = navigator.onLine && useNarration() && chapters.every((ch) => ch.audio?.[narratorId()])
       ? chapters.map((ch) => ({ ...ch.audio[narratorId()], timings: null }))
       : null;
-    $('#reader-sub').textContent = `${fmtLong.format(dateForIndex(index))}\n${bible().name}${current.narration ? ` · read by ${narratorName()}` : ''}`;
+    $('#reader-sub').textContent = `${fmtLong.format(dateForIndex(index))}\n${bible().name}`;
     body.innerHTML = '';
     chapters.forEach(({ verses }, ci) => {
       const heading = document.createElement('h3');
