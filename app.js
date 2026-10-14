@@ -753,6 +753,9 @@ function render() {
 
   // Group week (its readings aren't repeated in the list below)
   renderMeeting();
+  // With the week read, the next reading is next week's: it waits until the meeting is closed.
+  const meet = meetingToday();
+  card.hidden = !$('#meeting-card').hidden && next > meet.endIdx;
   const week = renderWeek(t);
   const markCount = Object.keys(state.marks).length;
   $('#marks-entry').hidden = Boolean(week) || !markCount;
