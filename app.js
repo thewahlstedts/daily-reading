@@ -335,6 +335,7 @@ function renderMeeting() {
 
 // summaries/week-NN.txt: plain text, one per plan week, paragraphs separated by blank lines.
 const summaries = {};   // plan week -> paragraphs ([] if there's no summary)
+const summaryHashes = {};   // plan week -> SHA-1 of its text, to tell whether its narration is current
 let summaryInCard = null;   // plan week whose summary the today card offers
 
 async function loadSummary(n) {
@@ -342,6 +343,7 @@ async function loadSummary(n) {
   const res = await fetch(`summaries/week-${String(n).padStart(2, '0')}.txt`);
   if (!res.ok) return (summaries[n] = []);
   const text = await res.text();
+  summaryHashes[n] = sha1(text);
   return (summaries[n] = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean));
 }
 
@@ -356,7 +358,76 @@ function setSummaryButton(btn, n) {
   }).catch(() => {});   // offline and not cached: no button
 }
 
+async function sha1(text) {
+  const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 const summaryDialog = $('#summary');
+
+// Narration of the summaries (tools/narrate_leb.py --summaries), next to the LEB's on R2:
+// week-NN.m4a + week-NN.json { paragraphs: [start seconds], sha1 }. Streamed, so online only.
+const SUMMARY_AUDIO = 'https://pub-5c47963a5c974d73895b1df2dc0d1b48.r2.dev/summaries';
+const summaryAudio = new Audio();
+summaryAudio.preload = 'none';
+let summaryStarts = [];   // paragraph start times of the open summary
+let summaryWeekOpen = 0;
+
+// Paragraph start times, or null when there's no recording of this exact text.
+async function summaryTimings(n) {
+  const res = await fetch(`${SUMMARY_AUDIO}/week-${String(n).padStart(2, '0')}.json`);
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (data.sha1 !== await summaryHashes[n]) return null;
+  return Array.isArray(data.paragraphs) ? data.paragraphs.filter((t) => typeof t === 'number') : [];
+}
+
+function stopSummaryAudio() {
+  summaryAudio.pause();
+  summaryAudio.removeAttribute('src');
+  summaryAudio.load();
+  setSummaryPlaying(false);
+  highlightParagraph(-1);
+}
+
+function setSummaryPlaying(on) {
+  $('#summary-play').classList.toggle('playing', on);
+  $('#summary-play').setAttribute('aria-label', on ? 'Pause' : 'Listen');
+}
+
+function highlightParagraph(k) {
+  $('#summary-body').querySelectorAll('p').forEach((p, j) => p.classList.toggle('speaking', j === k));
+}
+
+$('#summary-play').addEventListener('click', () => {
+  if (!summaryAudio.paused) return summaryAudio.pause();
+  if (!summaryAudio.src) {
+    stopSpeech();
+    summaryAudio.src = `${SUMMARY_AUDIO}/week-${String(summaryWeekOpen).padStart(2, '0')}.m4a`;
+  }
+  summaryAudio.playbackRate = state.rate;
+  summaryAudio.play().catch(() => setSummaryPlaying(false));
+});
+summaryAudio.addEventListener('play', () => {
+  setSummaryPlaying(true);
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: `Week ${summaryWeekOpen} summary`,
+      artist: 'Michael (AI voice)',
+      album: 'Daily Reading',
+      artwork: [{ src: 'icon-512.png', sizes: '512x512', type: 'image/png' }],
+    });
+  }
+});
+summaryAudio.addEventListener('pause', () => setSummaryPlaying(false));
+summaryAudio.addEventListener('ended', () => highlightParagraph(-1));
+summaryAudio.addEventListener('timeupdate', () => {
+  const t = summaryAudio.currentTime;
+  let k = -1;
+  summaryStarts.forEach((s, j) => { if (s <= t) k = j; });
+  highlightParagraph(k);
+});
+summaryDialog.addEventListener('close', stopSummaryAudio);
 
 async function openSummary(n) {
   const first = plan[(n - 1) * 7], last = plan[Math.min(n * 7, plan.length) - 1];
@@ -368,14 +439,25 @@ async function openSummary(n) {
     p.textContent = text;
     return p;
   }));
+  stopSummaryAudio();
+  summaryWeekOpen = n;
+  $('#summary-play').hidden = true;
   openSheet(summaryDialog);
   body.scrollTop = 0;
+  const starts = navigator.onLine ? await summaryTimings(n).catch(() => null) : null;
+  if (starts && summaryWeekOpen === n && summaryDialog.open) {
+    summaryStarts = starts;
+    $('#summary-play').hidden = false;
+  }
 }
 
 for (const id of ['#summary-btn', '#summary-solo-btn', '#meeting-summary-btn']) {
   $(id).addEventListener('click', (e) => openSummary(+e.currentTarget.dataset.week).catch(() => {}));
 }
-$('#summary-close').addEventListener('click', () => summaryDialog.close());
+$('#summary-close').addEventListener('click', () => {
+  stopSummaryAudio();
+  summaryDialog.close();
+});
 
 // ---------- Marked verses ----------
 
@@ -1659,8 +1741,9 @@ function updateMediaSession() {
 
 if ('mediaSession' in navigator) {
   const ms = navigator.mediaSession;
-  ms.setActionHandler('play', () => play());
-  ms.setActionHandler('pause', () => pause());
+  // The summary's narration, while it's open, else the reader's.
+  ms.setActionHandler('play', () => (summaryAudio.src ? summaryAudio.play().catch(() => {}) : play()));
+  ms.setActionHandler('pause', () => (summaryAudio.src ? summaryAudio.pause() : pause()));
   ms.setActionHandler('previoustrack', () => skip(-1));
   ms.setActionHandler('nexttrack', () => skip(1));
 }
