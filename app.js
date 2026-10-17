@@ -1320,6 +1320,57 @@ function closeReader() {
 $('#reader-close').addEventListener('click', closeReader);
 reader.addEventListener('cancel', (e) => { e.preventDefault(); closeReader(); });
 
+// Dragging the reader to the right closes it, like the back button. The sheet follows
+// the finger so the gesture can be abandoned by dragging back.
+let swipe = null;
+
+function settleSwipe(close) {
+  const done = () => {
+    reader.style.transition = '';
+    reader.style.transform = '';
+    if (close) closeReader();
+  };
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { done(); return; }
+  reader.style.transition = 'transform .2s ease-out';
+  reader.style.transform = close ? 'translateX(100%)' : '';
+  setTimeout(done, 200);
+}
+
+reader.addEventListener('touchstart', (e) => {
+  swipe = e.touches.length === 1 && !getSelection().toString()
+    ? { x: e.touches[0].clientX, y: e.touches[0].clientY, t: e.timeStamp, dx: 0, on: false }
+    : null;
+}, { passive: true });
+
+reader.addEventListener('touchmove', (e) => {
+  if (!swipe) return;
+  const dx = e.touches[0].clientX - swipe.x;
+  const dy = e.touches[0].clientY - swipe.y;
+  if (!swipe.on) {
+    if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+    // Decide once: a clearly rightward drag swipes; anything else scrolls as usual.
+    if (e.touches.length > 1 || !e.cancelable || dx < Math.abs(dy) * 2) { swipe = null; return; }
+    swipe.on = true;
+    reader.style.transition = 'none';
+  }
+  e.preventDefault();
+  swipe.dx = Math.max(0, dx);
+  reader.style.transform = `translateX(${swipe.dx}px)`;
+}, { passive: false });
+
+reader.addEventListener('touchend', (e) => {
+  if (!swipe?.on) { swipe = null; return; }
+  const { dx, t } = swipe;
+  swipe = null;
+  const fast = dx > 40 && dx / (e.timeStamp - t) > 0.5;
+  settleSwipe(dx > reader.clientWidth * 0.3 || fast);
+});
+
+reader.addEventListener('touchcancel', () => {
+  if (swipe?.on) settleSwipe(false);
+  swipe = null;
+});
+
 // Tapping a verse marks it to share with the group (tap again to unmark).
 $('#reader-body').addEventListener('click', (e) => {
   const v = e.target.closest('.verse');
