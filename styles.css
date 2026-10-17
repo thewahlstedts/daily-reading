@@ -124,6 +124,11 @@ section > h2, .section-head { margin-bottom: 10px; }
 .review-btn { width: 100%; margin-top: 10px; }
 .review-btn:disabled { opacity: .55; cursor: default; }
 #marks-entry { margin-bottom: 20px; }
+/* Summary and verses to discuss side by side; either one alone fills the row. */
+.btn-row { display: flex; flex-wrap: wrap; column-gap: 10px; }
+.btn-row > * { flex: 1 1 auto; }
+.btn-row > .review-btn { width: auto; }
+.btn-row > section:not(:has(.review-btn:not([hidden]))) { display: none; }
 .verse.marked { background: linear-gradient(transparent 55%, var(--highlight) 55%); }
 .verse.marked.speaking { background: var(--highlight); }
 .verse.marked sup::before { content: "★ "; color: var(--accent); }
