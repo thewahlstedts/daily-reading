@@ -8,6 +8,11 @@ Output, per chapter (same timings shape as HelloAO's *.audioTimings.json):
 By default only the chapters in plan.txt are narrated; --all does the whole LEB.
 Finished chapters are skipped, so it can be stopped and restarted at any time.
 
+--summaries narrates summaries/week-NN.txt in the same voice instead:
+  OUT/summaries/week-NN.m4a
+  OUT/summaries/week-NN.json  {"paragraphs": [start seconds of each paragraph], "sha1": text hash}
+A week is redone only when its text has changed (the hash differs).
+
 Setup, once (in a venv outside the repo; espeak-ng from Homebrew because the copy
 bundled with misaki can't find its data on macOS):
   brew install espeak-ng
@@ -18,8 +23,13 @@ bundled with misaki can't find its data on macOS):
 Run from the repo root (caffeinate keeps the Mac awake):
   caffeinate -i ~/.local/share/daily-reading/kokoro-venv/bin/python -I tools/narrate_leb.py ~/leb-audio
   ... --only 1SA.30 PSA.23   # just these chapters
+  ... --summaries [--only 7 12]   # week summaries (all, or just these weeks)
+
+Upload (R2 bucket daily-reading-audio; chapters under leb/, summaries under summaries/):
+  npx wrangler@4 r2 object put daily-reading-audio/leb/<BOOK>/<file> --file … --remote
 """
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -72,6 +82,60 @@ def clean(text):
     return re.sub(r'\s+', ' ', re.sub('[⌞⌟〚〛]', '', text)).strip()
 
 
+def spoken(text):
+    # References as a narrator would read them: "Psalm 95:7-11" -> "Psalm 95, verses 7 to 11".
+    text = re.sub(r'(\d+):(\d+)[-–](\d+)', r'\1, verses \2 to \3', text)
+    text = re.sub(r'(\d+):(\d+)', r'\1, verse \2', text)
+    return re.sub(r'(\d+)[-–](\d+)', r'\1 to \2', text)
+
+
+def write_m4a(audio, path, bitrate):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with tempfile.TemporaryDirectory() as tmp:
+        wav = os.path.join(tmp, 'audio.wav')
+        sf.write(wav, audio, RATE)
+        m4a = os.path.join(tmp, 'audio.m4a')
+        subprocess.run(['afconvert', '-f', 'm4af', '-d', 'aac', '-b', str(bitrate), wav, m4a], check=True)
+        os.replace(m4a, path)
+
+
+def narrate_summaries(args, speak, silence):
+    folder = os.path.join(args.out, 'summaries')
+    weeks = [int(w) for w in args.only] if args.only else range(1, 53)
+    todo = []
+    for n in weeks:
+        text = open(f'summaries/week-{n:02}.txt', encoding='utf-8').read()
+        sha1 = hashlib.sha1(text.encode()).hexdigest()
+        try:
+            done = json.load(open(os.path.join(folder, f'week-{n:02}.json'))).get('sha1') == sha1
+        except FileNotFoundError:
+            done = False
+        if not done:
+            todo.append((n, text, sha1))
+    if not todo:
+        print('Nothing to do: every summary is narrated and up to date.')
+        return
+    began, total = time.time(), 0.0
+    for k, (n, text, sha1) in enumerate(todo, 1):
+        parts = [speak(f'Week {n}.'), silence(HEADING_PAUSE)]
+        at = sum(len(p) for p in parts)
+        starts = []
+        for para in (p.strip() for p in re.split(r'\n\s*\n', text)):
+            if not para:
+                continue
+            starts.append(round(at / RATE, 2))
+            clip = speak(spoken(clean(para)))
+            parts += [clip, silence(HEADING_PAUSE)]
+            at += len(clip) + int(RATE * HEADING_PAUSE)
+        audio = np.concatenate(parts)
+        write_m4a(audio, os.path.join(folder, f'week-{n:02}.m4a'), args.bitrate)
+        with open(os.path.join(folder, f'week-{n:02}.json'), 'w') as f:
+            json.dump({'paragraphs': starts, 'sha1': sha1}, f, separators=(',', ':'))
+        total += len(audio) / RATE
+        print(f'[{k}/{len(todo)}] week {n}: {len(audio) / RATE / 60:.1f} min'
+              f' · {total / (time.time() - began):.1f}x realtime', flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('out', help='output folder (outside the repo)')
@@ -80,8 +144,16 @@ def main():
     ap.add_argument('--bitrate', type=int, default=32000, help='AAC bitrate, bits/second')
     ap.add_argument('--device', default='cpu', help='cpu was fastest on an M4; mps works too')
     ap.add_argument('--all', action='store_true', help='narrate every LEB chapter, not just the plan')
-    ap.add_argument('--only', nargs='+', metavar='BOOK.CH', help='e.g. 1SA.30 PSA.23')
+    ap.add_argument('--only', nargs='+', metavar='BOOK.CH', help='e.g. 1SA.30 PSA.23 (with --summaries: week numbers)')
+    ap.add_argument('--summaries', action='store_true', help='narrate the week summaries instead')
     args = ap.parse_args()
+
+    if args.summaries:
+        pipe = KPipeline(lang_code='a', repo_id='hexgrad/Kokoro-82M', device=args.device)
+        return narrate_summaries(
+            args,
+            lambda text: np.concatenate([r.audio.numpy() for r in pipe(text, voice=args.voice, speed=args.speed)]),
+            lambda seconds: np.zeros(int(RATE * seconds), dtype=np.float32))
 
     codes = book_codes()
     names = {}
@@ -134,13 +206,7 @@ def main():
         audio = np.concatenate(parts)
 
         folder = os.path.join(args.out, code)
-        os.makedirs(folder, exist_ok=True)
-        with tempfile.TemporaryDirectory() as tmp:
-            wav = os.path.join(tmp, 'chapter.wav')
-            sf.write(wav, audio, RATE)
-            m4a = os.path.join(tmp, 'chapter.m4a')
-            subprocess.run(['afconvert', '-f', 'm4af', '-d', 'aac', '-b', str(args.bitrate), wav, m4a], check=True)
-            os.replace(m4a, os.path.join(folder, f'{c}.m4a'))
+        write_m4a(audio, os.path.join(folder, f'{c}.m4a'), args.bitrate)
         # Timings last: their presence marks the chapter as done.
         with open(os.path.join(folder, f'{c}.json'), 'w') as f:
             json.dump({'verses': starts}, f, separators=(',', ':'))
