@@ -82,9 +82,12 @@ Plain static files, no build step, no package manager. Classic `<script>` tags s
 
 ## Testing
 
-No test suite. Verify by hand:
+GitHub Actions (`.github/workflows/checks.yml`) runs on every PR and push to `main`:
+- `node tools/check.mjs --base <base>`: every script parses, every `SHELL_FILES` entry exists, every local file the HTML pages load is in `SHELL_FILES`, no inline scripts or `on…=` handlers, and if a cached file changed, `SHELL` is newer than the base's (and `BIBLES` is renamed if `bibles/` changed). Run it locally before pushing (`--base origin/main`).
+- `tools/smoke.cjs`: headless Chromium at 390px, light and dark, other hosts blocked. It fails on any console error, page error or CSP violation, or if the service worker doesn't install, onboarding doesn't open and skip, the reader doesn't load the bundled LEB, Settings doesn't open, or the page scrolls sideways. Locally: `NODE_PATH="$(npm root -g)" node tools/smoke.cjs` with Playwright installed globally.
+
+Merging deploys, so wait for both checks to pass before merging. They don't cover sync, sign-in, narration, licensed translations or real phones; verify those by hand:
 ```sh
-node --check app.js sync.js reminder.js onboarding.js sw.js theme-init.js
 python3 -m http.server 8787   # http://localhost:8787 (also an allowed auth redirect)
 ```
 In the browser: no console errors or CSP violations; today card, catch-up, mark read/undo; reader loads and read-aloud highlights verses; Settings (themes, reading text, start date, share link, import/export); a light and a dark theme; ~390px width. Getting started only shows for a fresh browser profile (or after clearing `daily-reading:v1`). **Seed test state only in an incognito window** (the extension needs "Allow in Incognito"), or failing that on `127.0.0.1:8787`, never in a profile signed in to a real account: test state written while signed in syncs over the account. Clear test data afterwards (`daily-reading:v1`, `daily-reading:sync`, `daily-reading:onboard-step`, `daily-reading:invite`, `daily-reading:reminder`). Don't leave test rows in Supabase.

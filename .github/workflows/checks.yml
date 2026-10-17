@@ -1,0 +1,43 @@
+name: Checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    name: Static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0   # the SHELL check compares against the base commit
+      - name: Syntax, shell files, CSP rules, cache names
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -n "$BASE" ] && [ "$BASE" != 0000000000000000000000000000000000000000 ] && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            node tools/check.mjs --base "$BASE"
+          else
+            node tools/check.mjs
+          fi
+
+  smoke:
+    name: Browser smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Playwright (outside the repo; the app has no package manager)
+        working-directory: ${{ runner.temp }}
+        run: |
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Smoke test
+        env:
+          NODE_PATH: ${{ runner.temp }}/node_modules
+        run: node tools/smoke.cjs
