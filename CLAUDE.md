@@ -47,6 +47,7 @@ Plain static files, no build step, no package manager. Classic `<script>` tags s
 
 - 2-space indent, single quotes, small functions, sparse comments that explain *why*.
 - Colors only via theme tokens (`--bg --surface --ink --muted --line --accent --accent-soft --done --late --highlight`); every UI change must work in all 7 themes, light and dark.
+- System bars: `applyTheme()` sets `<meta name="theme-color">` to the theme's `--bg`, which colors the top status bar. In the installed Android app, the bottom gesture bar instead takes the manifest's fixed `#f7f3ec`, so it shows as a cream strip under dark themes (fine in a Chrome tab). Page CSS can't reach it, and a per-theme manifest would only apply after Chrome's occasional WebAPK update. We chose to keep Parchment rather than flip the problem onto light themes.
 - Phone first: 16px gutters, no horizontal scroll at ~390px wide.
 - When changing any cached file, bump `SHELL` in `sw.js`, and add new files to `SHELL_FILES`.
 
