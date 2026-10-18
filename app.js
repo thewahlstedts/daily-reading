@@ -567,7 +567,7 @@ let reviewRange = null; // { from, to, label } or null for all
 
 $('#review-btn').addEventListener('click', () => {
   const w = weekWindow(weekOffset);
-  openReview({ from: w.startIdx, to: w.endIdx, label: `${$('#week-title').textContent} · ${fmtDay.format(dateForIndex(w.startIdx))} – ${fmtDay.format(w.meet)}` });
+  openReview({ from: w.startIdx, to: w.endIdx, label: `${$('#week-title').textContent}\n${fmtDay.format(dateForIndex(w.startIdx))} – ${fmtDay.format(w.meet)}` });
 });
 $('#meeting-review-btn').addEventListener('click', () => {
   const w = weekWindow(0);
