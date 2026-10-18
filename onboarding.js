@@ -1,14 +1,16 @@
 'use strict';
 
-// Getting-started walkthrough for first-time visitors: sign in (optional),
-// installing the app, meeting day, start date, translation, AI for questions, look, and sharing with the group.
+// Getting-started walkthrough for first-time visitors: installing the app,
+// sign in (optional), meeting day, start date, translation, AI for questions, look, and sharing with the group.
 // Theme and text controls are borrowed from Settings while it's open, so
 // there's one implementation of each.
 
 const OB_STEP_KEY = 'daily-reading:onboard-step';
 const obStandalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
 // Already running as the installed app: no need to suggest installing it.
-const OB_STEPS = ['welcome', 'install', 'group', 'start', 'translation', 'ai', 'look', 'share'].filter((s) => !(s === 'install' && obStandalone));
+// Install comes before sign-in: an iPhone Home Screen app doesn't share storage
+// with Safari, so signing in first would mean signing in twice.
+const OB_STEPS = ['welcome', 'install', 'signin', 'group', 'start', 'translation', 'ai', 'look', 'share'].filter((s) => !(s === 'install' && obStandalone));
 const onboarding = $('#onboarding');
 let obStep = 0;
 let obFromLink = false;
@@ -21,7 +23,7 @@ function obSaveStep() {
 function obSavedStep() {
   let saved = null;
   try { saved = localStorage.getItem(OB_STEP_KEY); } catch {}
-  if (saved === 'install' && !OB_STEPS.includes(saved)) return OB_STEPS.indexOf('group'); // installed mid-walkthrough
+  if (saved === 'install' && !OB_STEPS.includes(saved)) return OB_STEPS.indexOf('signin'); // installed mid-walkthrough
   const i = OB_STEPS.indexOf(saved);
   return i >= 0 ? i : Math.min(Math.max(Number(saved) || 0, 0), OB_STEPS.length - 1); // older saves are indexes
 }
@@ -86,7 +88,7 @@ function showStep() {
   $('#ob-dots').innerHTML = OB_STEPS.map((_, i) => `<i class="${i === obStep ? 'on' : ''}"></i>`).join('');
   $('#ob-back').hidden = obStep === 0;
   $('#ob-body').scrollTop = 0;
-  ({ welcome: renderWelcome, install: renderInstall, group: renderGroup, start: renderStart, translation: renderTranslations, ai: renderAiChoices, look: () => {}, share: renderShare })[name]();
+  ({ welcome: renderInvite, install: renderInstall, signin: renderSignin, group: renderGroup, start: renderStart, translation: renderTranslations, ai: renderAiChoices, look: () => {}, share: renderShare })[name]();
   updateNext();
   obSaveStep();
 }
@@ -94,13 +96,12 @@ function showStep() {
 function updateNext() {
   const name = OB_STEPS[obStep];
   let label = 'Continue';
-  if (name === 'welcome' && !window.currentUserEmail?.()) label = 'Continue without signing in';
+  if (name === 'signin' && !window.currentUserEmail?.()) label = 'Continue without signing in';
   if (name === 'share') label = 'Finish';
   $('#ob-next').textContent = label;
 }
 
-function renderWelcome() {
-  renderInvite();
+function renderSignin() {
   const email = window.currentUserEmail?.();
   $('#ob-signin').hidden = Boolean(email) || !window.sendSignInLink;
   $('#ob-signedin').hidden = !email;
@@ -147,7 +148,7 @@ function installHelp() {
     return {
       title: 'On iPhone and iPad',
       how: 'Tap the Share button (under ⋯ if you don\'t see it), then Add to Home Screen. Daily reminders on iPhone only work from the Home Screen app.',
-      note: 'The Home Screen app keeps its own data, separate from the browser, so it\'s best to add it now and finish setting up there. If you signed in, sign in there too and your progress comes with you.',
+      note: `The Home Screen app keeps its own data, separate from the browser, so add it now and finish setting up there.${obFromLink ? ` Your group's schedule won't carry over, so pick it again there: ${groupSchedule()}.` : ''}`,
     };
   }
   if (installPrompt) return { title: 'Install with one tap', how: 'Adds Daily Reading to your home screen or app list.', button: true };
@@ -156,6 +157,11 @@ function installHelp() {
     return { title: 'On a Mac', how: 'In Safari\'s menu bar, choose File › Add to Dock.' };
   }
   return { title: 'On a computer', how: 'In Chrome or Edge, use the install icon in the address bar, or the browser menu\'s Install option. If your browser doesn\'t offer one, a bookmark works too.' };
+}
+
+function groupSchedule() {
+  const start = `starts ${fmtLong.format(dateForIndex(0))}`;
+  return state.meetDay == null ? start : `${start}, meets ${WEEKDAYS[state.meetDay]}s`;
 }
 
 function renderInstall(done = '') {
@@ -327,8 +333,8 @@ $('#ob-code').addEventListener('input', (e) => { if (e.target.value.replace(/\D/
 
 // Called by sync.js whenever the session changes.
 window.onAuthChanged = () => {
-  if (onboarding.open && OB_STEPS[obStep] === 'welcome') {
-    renderWelcome();
+  if (onboarding.open && OB_STEPS[obStep] === 'signin') {
+    renderSignin();
     updateNext();
   }
 };
