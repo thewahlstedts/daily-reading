@@ -1,25 +1,34 @@
 'use strict';
 
 // Getting-started walkthrough for first-time visitors: sign in (optional),
-// meeting day, start date, translation, AI for questions, look, and sharing with the group.
+// installing the app, meeting day, start date, translation, AI for questions, look, and sharing with the group.
 // Theme and text controls are borrowed from Settings while it's open, so
 // there's one implementation of each.
 
 const OB_STEP_KEY = 'daily-reading:onboard-step';
-const OB_STEPS = ['welcome', 'group', 'start', 'translation', 'ai', 'look', 'share'];
+const obStandalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+// Already running as the installed app: no need to suggest installing it.
+const OB_STEPS = ['welcome', 'install', 'group', 'start', 'translation', 'ai', 'look', 'share'].filter((s) => !(s === 'install' && obStandalone));
 const onboarding = $('#onboarding');
 let obStep = 0;
 let obFromLink = false;
 
+// Saved by name, so adding or skipping a step doesn't shift where people resume.
 function obSaveStep() {
-  try { localStorage.setItem(OB_STEP_KEY, String(obStep)); } catch {}
+  try { localStorage.setItem(OB_STEP_KEY, OB_STEPS[obStep]); } catch {}
+}
+
+function obSavedStep() {
+  let saved = null;
+  try { saved = localStorage.getItem(OB_STEP_KEY); } catch {}
+  if (saved === 'install' && !OB_STEPS.includes(saved)) return OB_STEPS.indexOf('group'); // installed mid-walkthrough
+  const i = OB_STEPS.indexOf(saved);
+  return i >= 0 ? i : Math.min(Math.max(Number(saved) || 0, 0), OB_STEPS.length - 1); // older saves are indexes
 }
 
 window.startOnboarding = () => {
   if (state.onboarded || onboarding.open) return;
-  let saved = 0;
-  try { saved = Number(localStorage.getItem(OB_STEP_KEY)) || 0; } catch {}
-  obStep = Math.min(Math.max(saved, 0), OB_STEPS.length - 1);
+  obStep = obSavedStep();
   try { obFromLink = localStorage.getItem('daily-reading:invite') === '1'; } catch {} // arrived via a group's share link
   borrowControls();
   openSheet(onboarding);
@@ -77,7 +86,7 @@ function showStep() {
   $('#ob-dots').innerHTML = OB_STEPS.map((_, i) => `<i class="${i === obStep ? 'on' : ''}"></i>`).join('');
   $('#ob-back').hidden = obStep === 0;
   $('#ob-body').scrollTop = 0;
-  ({ welcome: renderWelcome, group: renderGroup, start: renderStart, translation: renderTranslations, ai: renderAiChoices, look: () => {}, share: renderShare })[name]();
+  ({ welcome: renderWelcome, install: renderInstall, group: renderGroup, start: renderStart, translation: renderTranslations, ai: renderAiChoices, look: () => {}, share: renderShare })[name]();
   updateNext();
   obSaveStep();
 }
@@ -116,6 +125,58 @@ function renderInvite() {
   $('#ob-invite-week-label').textContent = w ? 'This week' : 'Today';
   $('#ob-invite-week').textContent = from > to ? 'The plan has finished' : from === to ? plan[from].ref : `${plan[from].ref} – ${plan[to].ref}`;
 }
+
+// ---------- Install ----------
+
+// Chrome and Edge offer their own install prompt; elsewhere it's a menu item, so say where.
+let installPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  if (onboarding.open && OB_STEPS[obStep] === 'install') renderInstall();
+});
+window.addEventListener('appinstalled', () => {
+  installPrompt = null;
+  if (onboarding.open && OB_STEPS[obStep] === 'install') renderInstall('Installed. You can open Daily Reading from its icon; your setup carries over.');
+});
+
+function installHelp() {
+  const ua = navigator.userAgent;
+  const ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (ios) {
+    return {
+      title: 'On iPhone and iPad',
+      how: 'Tap the Share button (under ⋯ if you don\'t see it), then Add to Home Screen. Daily reminders on iPhone only work from the Home Screen app.',
+      note: 'The Home Screen app keeps its own data, separate from the browser, so it\'s best to add it now and finish setting up there. If you signed in, sign in there too and your progress comes with you.',
+    };
+  }
+  if (installPrompt) return { title: 'Install with one tap', how: 'Adds Daily Reading to your home screen or app list.', button: true };
+  if (/Android/.test(ua)) return { title: 'On Android', how: 'Open your browser\'s menu (⋮) and choose Install app or Add to Home screen.' };
+  if (/Macintosh/.test(ua) && /Safari\//.test(ua) && !/Chrome|Chromium|Edg|Firefox/.test(ua)) {
+    return { title: 'On a Mac', how: 'In Safari\'s menu bar, choose File › Add to Dock.' };
+  }
+  return { title: 'On a computer', how: 'In Chrome or Edge, use the install icon in the address bar, or the browser menu\'s Install option. If your browser doesn\'t offer one, a bookmark works too.' };
+}
+
+function renderInstall(done = '') {
+  const help = installHelp();
+  $('#ob-install-title').textContent = done ? '✓ Installed' : help.title;
+  $('#ob-install-how').textContent = done || help.how;
+  $('#ob-install').hidden = Boolean(done) || !help.button;
+  $('#ob-install-note').textContent = help.note || '';
+  $('#ob-install-note').hidden = !help.note;
+}
+
+$('#ob-install').addEventListener('click', async () => {
+  if (!installPrompt) return;
+  const prompt = installPrompt;
+  installPrompt = null; // each prompt can only be shown once
+  prompt.prompt();
+  const { outcome } = await prompt.userChoice.catch(() => ({}));
+  if (outcome !== 'accepted') renderInstall();
+});
+
+// ---------- Group and start ----------
 
 function renderGroup() {
   $('#ob-from-link').hidden = !obFromLink;
