@@ -131,8 +131,6 @@ section > h2, .section-head { margin-bottom: 10px; }
 .btn-row > section:not(:has(.review-btn:not([hidden]))) { display: none; }
 .verse.marked { background: linear-gradient(transparent 55%, var(--highlight) 55%); }
 .verse.marked.speaking { background: var(--highlight); }
-.verse.marked sup::before { content: "★ "; color: var(--accent); }
-.verse.has-note::after { content: "✎"; font-family: var(--sans); font-size: .7em; color: var(--accent); margin: 0 4px 0 -2px; }
 .mark-bar { display: flex; align-items: center; gap: 16px; padding: 8px 16px; border-top: 1px solid var(--line); background: var(--accent-soft); font-size: 14px; }
 .mark-bar span { flex: 1; color: var(--ink); }
 .mark-bar .link-btn { font-weight: 600; }

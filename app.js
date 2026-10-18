@@ -1391,12 +1391,8 @@ $('#reader-body').addEventListener('click', (e) => {
 });
 
 function refreshVerseMarks() {
-  const spans = [...$('#reader-body').querySelectorAll('.verse')];
-  spans.forEach((span, k) => {
-    const ref = span.dataset.ref;
-    const lastOfVerse = spans[k + 1]?.dataset.ref !== ref;
-    span.classList.toggle('marked', Boolean(state.marks[ref]));
-    span.classList.toggle('has-note', lastOfVerse && Boolean(state.marks[ref]) && markRun(ref).at(-1) === ref && Boolean(runNote(markRun(ref))));
+  $('#reader-body').querySelectorAll('.verse').forEach((span) => {
+    span.classList.toggle('marked', Boolean(state.marks[span.dataset.ref]));
   });
 }
 
