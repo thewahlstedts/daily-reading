@@ -567,7 +567,7 @@ let reviewRange = null; // { from, to, label } or null for all
 
 $('#review-btn').addEventListener('click', () => {
   const w = weekWindow(weekOffset);
-  openReview({ from: w.startIdx, to: w.endIdx, label: `${$('#week-title').textContent} · ${fmtDay.format(dateForIndex(w.startIdx))} – ${fmtDay.format(w.meet)}` });
+  openReview({ from: w.startIdx, to: w.endIdx, label: `${$('#week-title').textContent}\n${fmtDay.format(dateForIndex(w.startIdx))} – ${fmtDay.format(w.meet)}` });
 });
 $('#meeting-review-btn').addEventListener('click', () => {
   const w = weekWindow(0);
@@ -1375,32 +1375,29 @@ function swipeToClose(sheet, close) {
 
 swipeToClose(reader, closeReader);
 
-// Tapping a verse marks it to share with the group (tap again to unmark).
+// Tapping a verse marks it to share with the group. Tapping a marked verse only opens
+// the bar (note, ask, unmark), so a stray tap can't remove a mark or its note.
 $('#reader-body').addEventListener('click', (e) => {
   const v = e.target.closest('.verse');
   if (!v || !current) return;
   const ref = v.dataset.ref;
-  const before = Object.fromEntries(markRun(ref).map((r) => [r, { ...state.marks[r] }]));
-  if (state.marks[ref]) unmarkVerse(ref);
-  else state.marks[ref] = { i: current.index, at: isoDate(new Date()), t: bible().id };
-  save();
-  render();
-  refreshVerseMarks();
-  updateReaderHint();
-  showMarkBar(ref, before);
+  if (!state.marks[ref]) {
+    state.marks[ref] = { i: current.index, at: isoDate(new Date()), t: bible().id };
+    save();
+    render();
+    refreshVerseMarks();
+    updateReaderHint();
+  }
+  showMarkBar(ref);
 });
 
 function refreshVerseMarks() {
-  const spans = [...$('#reader-body').querySelectorAll('.verse')];
-  spans.forEach((span, k) => {
-    const ref = span.dataset.ref;
-    const lastOfVerse = spans[k + 1]?.dataset.ref !== ref;
-    span.classList.toggle('marked', Boolean(state.marks[ref]));
-    span.classList.toggle('has-note', lastOfVerse && Boolean(state.marks[ref]) && markRun(ref).at(-1) === ref && Boolean(runNote(markRun(ref))));
+  $('#reader-body').querySelectorAll('.verse').forEach((span) => {
+    span.classList.toggle('marked', Boolean(state.marks[span.dataset.ref]));
   });
 }
 
-// After a tap: offer a note for the group just marked, or undo an unmark.
+// After a tap: offer a note, a question or unmarking for the group, or undo an unmark.
 let markBarRef = null;
 let markBarUndo = null;
 let markBarTimer;
@@ -1413,6 +1410,7 @@ function showMarkBar(ref, before) {
   $('#mark-bar-text').textContent = marked ? `Marked ${runRange(markRun(ref))}` : `Unmarked ${c}:${n}`;
   $('#mark-bar-note').hidden = !marked;
   $('#mark-bar-note').textContent = marked && runNote(markRun(ref)) ? 'Edit note' : 'Add note';
+  $('#mark-bar-unmark').hidden = !marked;
   $('#mark-bar-undo').hidden = marked;
   const url = marked && askUrl(markRun(ref));
   $('#mark-bar-ask').hidden = !url;
@@ -1434,6 +1432,19 @@ $('#mark-bar-note').addEventListener('click', () => {
   const ref = markBarRef;
   hideMarkBar();
   editNote(ref, () => { render(); refreshVerseMarks(); });
+});
+
+// Unmarks only the tapped verse, so a group can be trimmed; Undo puts the group back.
+$('#mark-bar-unmark').addEventListener('click', () => {
+  const ref = markBarRef;
+  if (!state.marks[ref]) return;
+  const before = Object.fromEntries(markRun(ref).map((r) => [r, { ...state.marks[r] }]));
+  unmarkVerse(ref);
+  save();
+  render();
+  refreshVerseMarks();
+  updateReaderHint();
+  showMarkBar(ref, before);
 });
 
 $('#mark-bar-undo').addEventListener('click', () => {
@@ -1567,6 +1578,8 @@ const commentary = $('#commentary');
 $('#commentary-btn').addEventListener('click', openCommentary);
 $('#commentary-close').addEventListener('click', () => commentary.close());
 swipeToClose(commentary, () => commentary.close());
+swipeToClose(review, () => review.close());
+swipeToClose(summaryDialog, () => summaryDialog.close());
 
 function updateReaderHint() {
   $('#reader-hint').hidden = Object.keys(state.marks).length > 0;
