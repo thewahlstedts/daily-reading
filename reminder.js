@@ -185,6 +185,9 @@ window.beforeSignOut = async () => {
   saveReminder();
 };
 
+// Onboarding offers the reminder only where it can be turned on right now.
+window.reminderAvailable = () => Boolean(VAPID_PUBLIC_KEY && window.supabaseClient) && !unavailableReason();
+
 if (!VAPID_PUBLIC_KEY || !window.supabaseClient) {
   $('#remind-group').hidden = true;
 } else {

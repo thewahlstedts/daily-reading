@@ -1,12 +1,13 @@
 'use strict';
 
 // Getting-started walkthrough for first-time visitors: sign in (optional),
-// meeting day, start date, translation, AI for questions, look, and sharing with the group.
-// Theme and text controls are borrowed from Settings while it's open, so
+// meeting day, start date, translation, AI for questions, look, a daily reminder
+// (only where it can work), and sharing with the group.
+// Theme, text and reminder controls are borrowed from Settings while it's open, so
 // there's one implementation of each.
 
 const OB_STEP_KEY = 'daily-reading:onboard-step';
-const OB_STEPS = ['welcome', 'group', 'start', 'translation', 'ai', 'look', 'share'];
+const OB_STEPS = ['welcome', 'group', 'start', 'translation', 'ai', 'look', 'remind', 'share'];
 const onboarding = $('#onboarding');
 let obStep = 0;
 let obFromLink = false;
@@ -56,7 +57,7 @@ function finishOnboarding(message, { fresh = true } = {}) {
 
 const obHomes = new Map();
 function borrowControls() {
-  [[$('#theme-picker'), $('#ob-slot-theme')], [$('#text-options'), $('#ob-slot-text')]].forEach(([el, slot]) => {
+  [[$('#theme-picker'), $('#ob-slot-theme')], [$('#text-options'), $('#ob-slot-text')], [$('#remind-card'), $('#ob-slot-remind')]].forEach(([el, slot]) => {
     if (obHomes.has(el)) return;
     const home = document.createComment('settings home');
     el.before(home);
@@ -71,13 +72,23 @@ function returnControls() {
 
 // ---------- Steps ----------
 
+// The reminder needs sign-in, push support and (on iPhone) the Home Screen app,
+// so its step is left out where it couldn't be turned on.
+const stepShown = (i) => OB_STEPS[i] !== 'remind' || Boolean(window.reminderAvailable?.());
+
+function stepFrom(i, dir) {
+  while (i > 0 && i < OB_STEPS.length - 1 && !stepShown(i)) i += dir;
+  return i;
+}
+
 function showStep() {
+  obStep = stepFrom(obStep, 1); // a resumed step may no longer apply
   const name = OB_STEPS[obStep];
   document.querySelectorAll('.ob-step').forEach((s) => { s.hidden = s.dataset.step !== name; });
-  $('#ob-dots').innerHTML = OB_STEPS.map((_, i) => `<i class="${i === obStep ? 'on' : ''}"></i>`).join('');
+  $('#ob-dots').innerHTML = OB_STEPS.map((_, i) => (stepShown(i) ? `<i class="${i === obStep ? 'on' : ''}"></i>` : '')).join('');
   $('#ob-back').hidden = obStep === 0;
   $('#ob-body').scrollTop = 0;
-  ({ welcome: renderWelcome, group: renderGroup, start: renderStart, translation: renderTranslations, ai: renderAiChoices, look: () => {}, share: renderShare })[name]();
+  ({ welcome: renderWelcome, group: renderGroup, start: renderStart, translation: renderTranslations, ai: renderAiChoices, look: () => {}, remind: renderReminder, share: renderShare })[name]();
   updateNext();
   obSaveStep();
 }
@@ -266,10 +277,7 @@ $('#ob-code').addEventListener('input', (e) => { if (e.target.value.replace(/\D/
 
 // Called by sync.js whenever the session changes.
 window.onAuthChanged = () => {
-  if (onboarding.open && OB_STEPS[obStep] === 'welcome') {
-    renderWelcome();
-    updateNext();
-  }
+  if (onboarding.open && OB_STEPS[obStep] === 'welcome') showStep(); // also adds the reminder's dot
 };
 
 // Signed in to an account that was already set up elsewhere: its settings are synced in.
@@ -281,13 +289,13 @@ window.onAccountRestored = () => {
 
 $('#ob-next').addEventListener('click', () => {
   if (obStep === OB_STEPS.length - 1) return finishOnboarding("You're all set. Happy reading!");
-  obStep++;
+  obStep = stepFrom(obStep + 1, 1);
   showStep();
 });
 
 $('#ob-back').addEventListener('click', () => {
   if (obStep === 0) return;
-  obStep--;
+  obStep = stepFrom(obStep - 1, -1);
   showStep();
 });
 
