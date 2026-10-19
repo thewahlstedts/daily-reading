@@ -50,6 +50,7 @@ Plain static files, no build step, no package manager. Classic `<script>` tags s
 - System bars: `applyTheme()` sets `<meta name="theme-color">` to the theme's `--bg`, which colors the top status bar. In the installed Android app, the bottom gesture bar instead takes the manifest's fixed `#f7f3ec`, so it shows as a cream strip under dark themes (fine in a Chrome tab). Page CSS can't reach it, and a per-theme manifest would only apply after Chrome's occasional WebAPK update. We chose to keep Parchment rather than flip the problem onto light themes.
 - Phone first: 16px gutters, no horizontal scroll at ~390px wide.
 - When changing any cached file, bump `SHELL` in `sw.js`, and add new files to `SHELL_FILES`.
+- For every new feature, decide whether onboarding should introduce or set it up (a new step in `OB_STEPS`, or a line in an existing one), and say which in the PR. Most features don't need it; ones that need a choice up front, sign-in, or the installed app usually do.
 
 ## Security rules (must follow)
 
