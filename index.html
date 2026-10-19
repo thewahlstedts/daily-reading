@@ -274,6 +274,12 @@
         <div id="ob-slot-text"></div>
       </section>
 
+      <section class="ob-step" data-step="remind" hidden>
+        <h2>Want a daily reminder?</h2>
+        <p>Pick a time and we'll send the day's reading, except on days you're already caught up. You can change it any time in Settings.</p>
+        <div id="ob-slot-remind"></div>
+      </section>
+
       <section class="ob-step" data-step="share" hidden>
         <h2>Invite your group</h2>
         <p>Send a link so everyone reads the same passage each day and arrives ready to talk about the week.</p>
@@ -488,7 +494,7 @@
 
       <section class="set-group" id="remind-group" aria-labelledby="sg-remind">
         <h3 id="sg-remind">Reminder</h3>
-        <div class="set-card">
+        <div class="set-card" id="remind-card">
           <label class="set-row">
             <span class="set-text"><span class="set-name">Daily reminder</span><small id="remind-hint"></small></span>
             <input type="checkbox" class="switch" id="set-remind">
