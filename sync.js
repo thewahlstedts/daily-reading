@@ -352,6 +352,38 @@ function showExpired() {
   $('#signin-banner').hidden = false;
 }
 
+// ---------- Usage counts ----------
+
+// So the owner can see how many devices use the app, signed in or not: once per
+// UTC day per device (and again when the account changes), the live site sends a
+// random device ID and whether it's the home-screen app. Nothing else.
+const USAGE_FN = `${SUPABASE_URL}/functions/v1/usage`;
+const USAGE_KEY = 'daily-reading:usage';
+let pinging = false; // load fires several auth events at once
+
+async function pingUsage() {
+  if (location.hostname !== 'thewahlstedts.github.io' || !navigator.onLine || pinging) return;
+  let seen = {};
+  try { seen = JSON.parse(localStorage.getItem(USAGE_KEY) || '{}'); } catch {}
+  const day = new Date().toISOString().slice(0, 10);
+  const who = user?.id ?? '';
+  if (seen.day === day && seen.who === who) return;
+  // Keep the ID before sending, so a lost reply doesn't make this a new device.
+  const device = /^[0-9a-f-]{36}$/.test(seen.device) ? seen.device : crypto.randomUUID();
+  const remember = (v) => { try { localStorage.setItem(USAGE_KEY, JSON.stringify(v)); } catch {} };
+  remember({ ...seen, device });
+  pinging = true;
+  try {
+    const token = user ? await window.getAccessToken() : null;
+    const res = await fetch(USAGE_FN, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) },
+      body: JSON.stringify({ device, standalone: !!(navigator.standalone || matchMedia('(display-mode: standalone)').matches) }),
+    });
+    if (res.ok) remember({ device, day, who });
+  } catch {} finally { pinging = false; } // offline or blocked: try again next time
+}
+
 // ---------- Wiring ----------
 
 if (!sb) {
@@ -366,6 +398,7 @@ if (!sb) {
     window.onAuthChanged?.();
     document.dispatchEvent(new Event('authchange'));
     if (!user && (event === 'INITIAL_SESSION' || event === 'SIGNED_OUT')) showExpired();
+    setTimeout(pingUsage, 0); // deferred, like pull() below
     if (user && wasSignedOut) {
       // Defer: calling Supabase inside this callback can deadlock the auth client.
       const firstSignIn = meta.userId !== user.id;
@@ -378,7 +411,8 @@ if (!sb) {
 
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && user) pull();
+    if (!document.hidden) pingUsage();
   });
   setInterval(() => { if (!document.hidden && user) pull(); }, 120000);
-  window.addEventListener('online', () => { if (user) pull(); });
+  window.addEventListener('online', () => { if (user) pull(); pingUsage(); });
 }

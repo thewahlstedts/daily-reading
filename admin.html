@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://rnpuwanpgundhfmvzrne.supabase.co; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex">
+  <title>Usage</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <script src="theme-init.js"></script>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <svg class="defs" aria-hidden="true"><defs><pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="5"/></pattern></defs></svg>
+  <main class="admin">
+    <p><a href="./">‹ Back to Daily Reading</a></p>
+    <div class="admin-head">
+      <div>
+        <p class="eyebrow">Daily Reading</p>
+        <h1>Usage</h1>
+      </div>
+      <button class="btn ghost" id="refresh" type="button">Refresh</button>
+    </div>
+    <p id="status" class="admin-status">Loading…</p>
+
+    <div id="dash" hidden>
+      <div class="tiles">
+        <section class="tile">
+          <h2>Accounts</h2>
+          <p class="big" id="t-accounts"></p>
+          <p class="sub" id="t-accounts-sub"></p>
+        </section>
+        <section class="tile" data-window="d1"><h2>Today</h2></section>
+        <section class="tile" data-window="d7"><h2>Last 7 days</h2></section>
+        <section class="tile" data-window="d30"><h2>Last 30 days</h2></section>
+      </div>
+
+      <section class="card chart-card">
+        <h2>Daily use, last 30 days</h2>
+        <div class="legend">
+          <span><svg width="14" height="14" aria-hidden="true"><rect class="seg-in" width="14" height="14" rx="3"/></svg>Signed in (accounts)</span>
+          <span><svg width="14" height="14" aria-hidden="true"><rect class="seg-anon" x=".5" y=".5" width="13" height="13" rx="3"/></svg>Not signed in (devices)</span>
+        </div>
+        <div class="chart" id="chart"></div>
+        <details>
+          <summary>Show as table</summary>
+          <div class="table-wrap"><table id="daily-table"><thead><tr><th>Day (UTC)</th><th class="num">Signed in</th><th class="num">Not signed in</th></tr></thead><tbody></tbody></table></div>
+        </details>
+      </section>
+
+      <section class="card">
+        <h2>Accounts</h2>
+        <div class="table-wrap"><table id="people"><thead><tr><th>Email</th><th>Joined</th><th>Last seen</th><th class="num">Read</th><th>Group</th></tr></thead><tbody></tbody></table></div>
+      </section>
+
+      <p class="fine" id="fine"></p>
+    </div>
+  </main>
+  <script src="vendor/supabase-2.117.1.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>
