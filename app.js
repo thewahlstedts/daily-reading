@@ -1338,7 +1338,8 @@ function swipeToClose(sheet, close) {
   };
 
   sheet.addEventListener('touchstart', (e) => {
-    swipe = e.touches.length === 1 && !getSelection().toString()
+    // A slider is dragged sideways too, so a drag that starts on one adjusts it instead.
+    swipe = e.touches.length === 1 && !getSelection().toString() && !e.target.closest('input[type="range"]')
       ? { x: e.touches[0].clientX, y: e.touches[0].clientY, t: e.timeStamp, dx: 0, on: false }
       : null;
   }, { passive: true });
@@ -2015,6 +2016,7 @@ $('#settings-btn').addEventListener('click', () => {
   openSheet(settings);
 });
 $('#settings-close').addEventListener('click', () => settings.close());
+swipeToClose(settings, () => settings.close());
 
 function setStart(iso) {
   state.start = iso;
