@@ -280,6 +280,7 @@ $('#sync-signout').addEventListener('click', async () => {
 const accountDialog = $('#account');
 function openAccount() {
   openSheet(accountDialog);
+  checkAdmin({ fresh: true });
   if (!user) $('#sync-email-input').focus();
 }
 
@@ -384,17 +385,18 @@ async function pingUsage() {
   } catch {} finally { pinging = false; } // offline or blocked: try again next time
 }
 
-// Settings shows the dashboard link only to admins. The list lives on the server
-// (ADMIN_EMAILS), so ask it, at most once a day per account on this device.
+// The Account screen shows the dashboard link only to admins. The list lives on
+// the server (ADMIN_EMAILS), so ask it each time the screen opens (and once a
+// day on load); the last answer shows meanwhile.
 const ADMIN_KEY = 'daily-reading:admin';
 let checkingAdmin = false;
 
-async function checkAdmin() {
+async function checkAdmin({ fresh = false } = {}) {
   let known = {};
   try { known = JSON.parse(localStorage.getItem(ADMIN_KEY) || '{}'); } catch {}
   const mine = Boolean(user) && known.uid === user.id;
-  $('#admin-group').hidden = !(mine && known.admin === true);
-  if (!user || !navigator.onLine || checkingAdmin || (mine && Date.now() - known.at < 86400000)) return;
+  $('#admin-card').hidden = !(mine && known.admin === true);
+  if (!user || !navigator.onLine || checkingAdmin || (!fresh && mine && Date.now() - known.at < 86400000)) return;
   checkingAdmin = true;
   try {
     const token = await window.getAccessToken();
@@ -403,7 +405,7 @@ async function checkAdmin() {
     const { admin } = res.ok ? await res.json() : {};
     if (typeof admin !== 'boolean') return; // e.g. a function deployed before ?check existed
     localStorage.setItem(ADMIN_KEY, JSON.stringify({ uid: user.id, admin, at: Date.now() }));
-    $('#admin-group').hidden = !admin;
+    $('#admin-card').hidden = !admin;
   } catch {} finally { checkingAdmin = false; } // offline or blocked: keep what we knew
 }
 
