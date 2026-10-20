@@ -445,3 +445,9 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/feedback/deno.json"
 entrypoint = "./functions/feedback/index.ts"
+
+[functions.usage]
+enabled = true
+verify_jwt = false # pings come from signed-out devices too; stats check the user and ADMIN_EMAILS itself
+import_map = "./functions/usage/deno.json"
+entrypoint = "./functions/usage/index.ts"
