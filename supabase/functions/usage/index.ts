@@ -9,6 +9,10 @@
 //   Authorization: Bearer <user access token> of an email in ADMIN_EMAILS.
 //   Returns totals for the dashboard, plus the list of accounts.
 //
+// GET /functions/v1/usage?check
+//   Any signed-in user: { admin: true|false }, so the app can show the
+//   dashboard link in Settings without the admin list being public.
+//
 // Secrets: ADMIN_EMAILS (comma-separated). Uses the service role key the platform provides.
 
 const ALLOWED_ORIGINS = ['https://thewahlstedts.github.io', 'http://localhost:8787'];
@@ -121,7 +125,9 @@ async function stats(req: Request, origin: string | null) {
   const user = await currentUser(req);
   if (!user) return json({ error: 'Sign in first' }, 401, origin);
   const admins = env('ADMIN_EMAILS').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
-  if (!admins.includes(user.email.toLowerCase())) return json({ error: 'Not an admin account' }, 403, origin);
+  const admin = admins.includes(user.email.toLowerCase());
+  if (new URL(req.url).searchParams.has('check')) return json({ admin }, 200, origin);
+  if (!admin) return json({ error: 'Not an admin account' }, 403, origin);
 
   const users = [];
   for (let page = 1; page <= MAX_PAGES; page++) {
