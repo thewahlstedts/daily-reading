@@ -40,7 +40,8 @@ for (const file of shellPaths) {
 
 // 3. HTML: no inline scripts or event handlers (the CSP blocks them), and every local
 // file a page loads is precached, so the app still opens offline. (admin.html, the
-// owner's dashboard, is online only, so it gets the CSP checks but isn't precached.)
+// owner's dashboard, is online only, so it gets the CSP checks but isn't precached,
+// and the app's link to it is allowed.)
 for (const page of ['index.html', 'copyright.html', 'admin.html']) {
   const html = readFileSync(page, 'utf8');
   for (const [tag] of html.matchAll(/<script\b[^>]*>/gi)) {
@@ -51,7 +52,7 @@ for (const page of ['index.html', 'copyright.html', 'admin.html']) {
   }
   for (const [, url] of html.matchAll(/\b(?:src|href)="([^"#:]+)"/g)) {
     const file = url === './' ? 'index.html' : url;
-    if (page !== 'admin.html' && !shellPaths.has(file)) fail(`${page} loads ${url}, which isn't in sw.js SHELL_FILES`);
+    if (page !== 'admin.html' && file !== 'admin.html' && !shellPaths.has(file)) fail(`${page} loads ${url}, which isn't in sw.js SHELL_FILES`);
   }
 }
 

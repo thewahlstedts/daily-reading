@@ -384,6 +384,29 @@ async function pingUsage() {
   } catch {} finally { pinging = false; } // offline or blocked: try again next time
 }
 
+// Settings shows the dashboard link only to admins. The list lives on the server
+// (ADMIN_EMAILS), so ask it, at most once a day per account on this device.
+const ADMIN_KEY = 'daily-reading:admin';
+let checkingAdmin = false;
+
+async function checkAdmin() {
+  let known = {};
+  try { known = JSON.parse(localStorage.getItem(ADMIN_KEY) || '{}'); } catch {}
+  const mine = Boolean(user) && known.uid === user.id;
+  $('#admin-group').hidden = !(mine && known.admin === true);
+  if (!user || !navigator.onLine || checkingAdmin || (mine && Date.now() - known.at < 86400000)) return;
+  checkingAdmin = true;
+  try {
+    const token = await window.getAccessToken();
+    if (!token) return;
+    const res = await fetch(`${USAGE_FN}?check`, { headers: { Authorization: `Bearer ${token}`, apikey: SUPABASE_KEY } });
+    const { admin } = res.ok ? await res.json() : {};
+    if (typeof admin !== 'boolean') return; // e.g. a function deployed before ?check existed
+    localStorage.setItem(ADMIN_KEY, JSON.stringify({ uid: user.id, admin, at: Date.now() }));
+    $('#admin-group').hidden = !admin;
+  } catch {} finally { checkingAdmin = false; } // offline or blocked: keep what we knew
+}
+
 // ---------- Wiring ----------
 
 if (!sb) {
@@ -399,6 +422,7 @@ if (!sb) {
     document.dispatchEvent(new Event('authchange'));
     if (!user && (event === 'INITIAL_SESSION' || event === 'SIGNED_OUT')) showExpired();
     setTimeout(pingUsage, 0); // deferred, like pull() below
+    setTimeout(checkAdmin, 0);
     if (user && wasSignedOut) {
       // Defer: calling Supabase inside this callback can deadlock the auth client.
       const firstSignIn = meta.userId !== user.id;
