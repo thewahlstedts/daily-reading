@@ -188,22 +188,41 @@ function setStatus(text, isError = false) {
   el.classList.toggle('error', isError);
 }
 
+// Offline, an expired access token can't be refreshed, so the auth client reports no
+// session even though it keeps the stored one (it only drops it when the server says
+// it's invalid). Returns that session's email, so we can show "offline", not "sign in".
+function keptEmail() {
+  if (user) return null;
+  try { return JSON.parse(localStorage.getItem(sb.auth.storageKey) || 'null')?.user?.email || null; } catch { return null; }
+}
+
 function renderAccount() {
-  $('#sync-signed-out').hidden = Boolean(user);
-  $('#sync-signed-in').hidden = !user;
-  // Header icon: always shown; highlighted with a dot while signed in.
+  const kept = keptEmail();
+  const email = user?.email ?? kept;
+  const offline = Boolean(email) && (Boolean(kept) || !navigator.onLine);
+  $('#sync-signed-out').hidden = Boolean(email);
+  $('#sync-signed-in').hidden = !email;
+  // Neither button works until the session is confirmed again.
+  $('#sync-now').hidden = Boolean(kept);
+  $('#sync-signout').hidden = Boolean(kept);
+  // Header icon: always shown; highlighted with a dot while signed in, a labeled pill
+  // when signed out or offline.
   const btn = $('#account-btn');
-  btn.classList.toggle('signed-in', Boolean(user));
-  btn.title = user ? `Signed in as ${user.email} · syncing` : 'Sign in to sync';
-  btn.setAttribute('aria-label', user ? `Account: signed in as ${user.email}` : 'Account: sign in to sync');
-  $('#settings-account-status').textContent = user ? `Signed in as ${user.email}` : 'Not signed in';
-  $('#feedback-status').textContent = user ? 'Ideas, problems, anything' : 'Sign in first, so you can get a reply';
-  $('#account-heading').textContent = user ? 'You’re signed in' : 'Sync across your devices';
-  $('#account-sub').hidden = Boolean(user);
-  if (user) $('#signin-banner').hidden = true;
-  if (user) {
-    $('#sync-email').textContent = user.email;
-    setStatus();
+  btn.classList.toggle('signed-in', Boolean(email) && !offline);
+  btn.classList.toggle('offline', offline);
+  btn.querySelector('.account-label').textContent = offline ? 'Offline' : 'Sign in';
+  btn.title = offline ? `Offline · signed in as ${email}` : user ? `Signed in as ${user.email} · syncing` : 'Sign in to sync';
+  btn.setAttribute('aria-label', offline ? `Account: offline, signed in as ${email}` : user ? `Account: signed in as ${user.email}` : 'Account: sign in to sync');
+  $('#settings-account-status').textContent = email ? `Signed in as ${email}${offline ? ' · offline' : ''}` : 'Not signed in';
+  $('#feedback-status').textContent = user ? 'Ideas, problems, anything' : kept ? 'Connect to the internet to send feedback' : 'Sign in first, so you can get a reply';
+  $('#account-heading').textContent = email ? 'You’re signed in' : 'Sync across your devices';
+  $('#account-sub').hidden = Boolean(email);
+  if (email) $('#signin-banner').hidden = true;
+  if (email) $('#sync-email').textContent = email;
+  if (kept) {
+    setStatus(navigator.onLine ? "Can't reach the sync server. Reconnecting…" : OFFLINE);
+  } else if (user) {
+    setStatus(navigator.onLine ? undefined : OFFLINE);
   }
 }
 
@@ -287,6 +306,7 @@ function openAccount() {
 $('#account-btn').addEventListener('click', openAccount);
 $('#settings-account').addEventListener('click', openAccount);
 $('#account-close').addEventListener('click', () => accountDialog.close());
+swipeToClose(accountDialog, () => accountDialog.close());
 $('#signin-again').addEventListener('click', () => {
   $('#signin-banner').hidden = true;
   if (meta.email) $('#sync-email-input').value = meta.email;
@@ -349,7 +369,7 @@ $('#feedback-form').addEventListener('submit', async (e) => {
 
 // Previously signed in on this device, but the session is gone (expired or revoked).
 function showExpired() {
-  if (signingOut || !meta.userId) return;
+  if (signingOut || !meta.userId || keptEmail()) return;
   $('#signin-banner').hidden = false;
 }
 
@@ -440,5 +460,11 @@ if (!sb) {
     if (!document.hidden) pingUsage();
   });
   setInterval(() => { if (!document.hidden && user) pull(); }, 120000);
-  window.addEventListener('online', () => { if (user) pull(); pingUsage(); });
+  window.addEventListener('online', () => {
+    renderAccount();
+    // A kept session refreshes here (or on the client's own 30 s timer), firing TOKEN_REFRESHED.
+    if (user) pull(); else if (keptEmail()) sb.auth.getSession();
+    pingUsage();
+  });
+  window.addEventListener('offline', renderAccount);
 }
