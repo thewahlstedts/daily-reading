@@ -112,6 +112,7 @@ section > h2, .section-head { margin-bottom: 10px; }
 .account-btn:not(.signed-in) { flex-direction: row; display: flex; align-items: center; gap: 4px; padding: 5px 12px 5px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink); background: var(--surface); }
 .account-btn:not(.signed-in) svg { width: 18px; height: 18px; }
 .account-btn:not(.signed-in) .account-label { display: inline; font-size: 14px; font-weight: 600; }
+.account-btn.offline { color: var(--muted); border-style: dashed; }
 .set-link { width: 100%; background: none; border: 0; text-align: left; cursor: pointer; color: inherit; font: inherit; }
 .set-link svg { color: var(--muted); flex: none; }
 a.set-link { text-decoration: none; }
