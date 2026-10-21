@@ -1396,8 +1396,8 @@ function swipeToClose(sheet, close) {
 
 swipeToClose(reader, closeReader);
 
-// Dragging the text to the left goes on: to the next chapter of a multi-chapter reading,
-// else to the next reading. It slides out and the next part slides in from the right.
+// Dragging the text to the left opens the next day's reading: the text slides out and
+// the next reading slides in from the right.
 function swipeToNext(el, next) {
   let swipe = null;
   const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1449,21 +1449,9 @@ function swipeToNext(el, next) {
   });
 }
 
-// The chapter heading below the top of the view, else the next reading. False at the end.
+// The next day's reading. False at the end of the plan.
 function readerNext() {
-  if (!current) return false;
-  const body = $('#reader-body');
-  const top = body.getBoundingClientRect().top;
-  const k = current.segments.findIndex((seg) => seg.el.tagName === 'H3' && seg.ci > 0 && seg.el.getBoundingClientRect().top > top + 16);
-  if (k >= 0) {
-    hideMarkBar();
-    pos = k;
-    pausedAt = -1;
-    if (playing) speakFrom(k);
-    body.scrollTop += current.segments[k].el.getBoundingClientRect().top - top - 8;
-    return true;
-  }
-  if (current.index + 1 >= plan.length) return false;
+  if (!current || current.index + 1 >= plan.length) return false;
   hideMarkBar();
   openReader(current.index + 1, false);
   return true;
