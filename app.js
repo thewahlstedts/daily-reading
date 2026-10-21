@@ -636,8 +636,12 @@ async function renderReview() {
       const nums = run.map((r) => Number(r.split('.')[2]));
       const row = document.createElement('div');
       row.className = 'review-verse';
-      const label = document.createElement('span');
+      // Tapping the reference or the text opens the reader at these verses.
+      const label = document.createElement('button');
+      label.type = 'button';
       label.className = 'review-ref';
+      label.dataset.goto = run[0];
+      label.dataset.reading = i;
       // Show each group in the translation it was marked in.
       const b = BIBLES.find((x) => x.id === state.marks[run[0]].t) || bible();
       const abbr = b.name.match(/\(([^)]+)\)$/)?.[1] || b.name;
@@ -645,8 +649,12 @@ async function renderReview() {
       const tag = document.createElement('small');
       tag.textContent = abbr;
       label.append(tag);
+      label.setAttribute('aria-label', `Read ${item.book} ${runRange(run)} in context`);
       const content = document.createElement('div');
       const text = document.createElement('p');
+      text.className = 'review-text';
+      text.dataset.goto = run[0];
+      text.dataset.reading = i;
       try {
         const chapter = await fetchChapter(item.book, ch, b);
         if (!usedChapters.has(b.id)) usedChapters.set(b.id, []);
@@ -664,7 +672,7 @@ async function renderReview() {
         text.textContent = navigator.onLine
           ? (err.signIn ? err.message : `Couldn't load the text (${err.message}).`)
           : offlineMessage(b);
-        text.className = 'muted';
+        text.className = 'review-text muted';
       }
       content.append(text);
       const note = runNote(run);
@@ -712,6 +720,13 @@ $('#review-body').addEventListener('click', (e) => {
   const un = e.target.closest('[data-unmark]');
   if (un) {
     confirmUnmark(un.dataset.unmark.split(' '));
+    return;
+  }
+  const go = e.target.closest('[data-goto]');
+  if (go) {
+    e.stopPropagation();
+    review.close();
+    openReader(+go.dataset.reading, false, go.dataset.goto);
     return;
   }
   const open = e.target.closest('[data-open]');
@@ -1212,12 +1227,15 @@ let wakeLock = null;
 
 const reader = $('#reader');
 
-async function openReader(index, autoplay) {
+// `at` is a verse ref to scroll to once the text is in, e.g. from Verses to discuss.
+async function openReader(index, autoplay, at) {
   stopSpeech();
   narrationChapter = -1;
   const item = plan[index];
   current = { index, segments: [] };
   pos = 0;
+  jumpedTo = null;
+  $('#jump-mark').hidden = true;
   $('#reader-title').textContent = item.ref;
   $('#reader-sub').textContent = fmtLong.format(dateForIndex(index));
   updateMarkBtn();
@@ -1245,6 +1263,8 @@ async function openReader(index, autoplay) {
       renderVerses(body, verses, `${BOOK_CODES[item.book]}.${item.chapters[ci]}`, ci, chapterSeg);
     });
     refreshVerseMarks();
+    const target = at && body.querySelector(`.verse[data-ref="${at}"]`);
+    if (target) jumpTo(target, false);
     // Copyrighted translations: show the required notice and links; report licensed views.
     const notice = renderNotice(chapters);
     if (notice) body.append(notice);
@@ -1396,7 +1416,75 @@ function refreshVerseMarks() {
   $('#reader-body').querySelectorAll('.verse').forEach((span) => {
     span.classList.toggle('marked', Boolean(state.marks[span.dataset.ref]));
   });
+  updateJumpBtn();
 }
+
+// Jumping from mark to mark lets someone read along with the group and still find the
+// verses they marked. Each group of consecutive marked verses is one stop.
+const JUMP_OFFSET = 48;  // px of context left above the verse jumped to
+let jumpedTo = null;
+let jumpTimer;
+
+function markStops() {
+  const stops = [];
+  let run = new Set();
+  $('#reader-body').querySelectorAll('.verse.marked').forEach((span) => {
+    if (run.has(span.dataset.ref)) return;
+    run = new Set(markRun(span.dataset.ref));
+    stops.push(span);
+  });
+  return stops;
+}
+
+// The first stop below the top of the view. Near the end the last stops can't scroll
+// to the top, so while the one jumped to is still on screen, go on from it instead.
+function nextStop(stops) {
+  const view = $('#reader-body').getBoundingClientRect();
+  const k = stops.indexOf(jumpedTo);
+  if (k >= 0) {
+    const r = jumpedTo.getBoundingClientRect();
+    if (r.bottom > view.top && r.top < view.bottom) return stops[k + 1] ?? null;
+  }
+  return stops.find((span) => span.getBoundingClientRect().top > view.top + JUMP_OFFSET + 4) ?? null;
+}
+
+function updateJumpBtn() {
+  const stops = markStops();
+  const btn = $('#jump-mark');
+  btn.hidden = !stops.length;
+  if (!stops.length) return;
+  const wrap = !nextStop(stops);
+  btn.classList.toggle('up', wrap);
+  $('#jump-mark-text').textContent = wrap ? 'First marked verse' : 'Next marked verse';
+}
+
+$('#jump-mark').addEventListener('click', () => {
+  const stops = markStops();
+  const target = nextStop(stops) ?? stops[0];
+  if (target) jumpTo(target, true);
+});
+
+function jumpTo(target, animate) {
+  const body = $('#reader-body');
+  const top = body.scrollTop + target.getBoundingClientRect().top - body.getBoundingClientRect().top - JUMP_OFFSET;
+  const smooth = animate && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  body.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'auto' });
+  jumpedTo = target;
+  // Briefly fill the group, since near the end it may not land at the top.
+  body.querySelectorAll('.verse.jumped').forEach((el) => el.classList.remove('jumped'));
+  markRun(target.dataset.ref).forEach((ref) => {
+    body.querySelectorAll(`[data-ref="${ref}"]`).forEach((el) => el.classList.add('jumped'));
+  });
+  clearTimeout(jumpTimer);
+  jumpTimer = setTimeout(() => body.querySelectorAll('.verse.jumped').forEach((el) => el.classList.remove('jumped')), 1500);
+  updateJumpBtn();
+}
+
+let jumpFrame = 0;
+$('#reader-body').addEventListener('scroll', () => {
+  if (jumpFrame || $('#jump-mark').hidden) return;
+  jumpFrame = requestAnimationFrame(() => { jumpFrame = 0; updateJumpBtn(); });
+}, { passive: true });
 
 // After a tap: offer a note, a question or unmarking for the group, or undo an unmark.
 let markBarRef = null;
