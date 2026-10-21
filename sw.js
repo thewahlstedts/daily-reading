@@ -1,7 +1,7 @@
 // App shell: network-first so updates show up, falling back to cache offline
 // (or when the network is too slow to answer).
 // Scripture and bundled Bibles: cache-first, so they work offline.
-const SHELL = 'daily-reading-shell-v72';
+const SHELL = 'daily-reading-shell-v73';
 const TEXT = 'daily-reading-text-v2';
 // Bundled Bibles live outside the shell cache so app updates don't wipe them.
 // Bump this when the files in bibles/ are regenerated.

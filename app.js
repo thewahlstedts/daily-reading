@@ -636,8 +636,12 @@ async function renderReview() {
       const nums = run.map((r) => Number(r.split('.')[2]));
       const row = document.createElement('div');
       row.className = 'review-verse';
-      const label = document.createElement('span');
+      // Tapping the reference or the text opens the reader at these verses.
+      const label = document.createElement('button');
+      label.type = 'button';
       label.className = 'review-ref';
+      label.dataset.goto = run[0];
+      label.dataset.reading = i;
       // Show each group in the translation it was marked in.
       const b = BIBLES.find((x) => x.id === state.marks[run[0]].t) || bible();
       const abbr = b.name.match(/\(([^)]+)\)$/)?.[1] || b.name;
@@ -645,8 +649,12 @@ async function renderReview() {
       const tag = document.createElement('small');
       tag.textContent = abbr;
       label.append(tag);
+      label.setAttribute('aria-label', `Read ${item.book} ${runRange(run)} in context`);
       const content = document.createElement('div');
       const text = document.createElement('p');
+      text.className = 'review-text';
+      text.dataset.goto = run[0];
+      text.dataset.reading = i;
       try {
         const chapter = await fetchChapter(item.book, ch, b);
         if (!usedChapters.has(b.id)) usedChapters.set(b.id, []);
@@ -664,7 +672,7 @@ async function renderReview() {
         text.textContent = navigator.onLine
           ? (err.signIn ? err.message : `Couldn't load the text (${err.message}).`)
           : offlineMessage(b);
-        text.className = 'muted';
+        text.className = 'review-text muted';
       }
       content.append(text);
       const note = runNote(run);
@@ -712,6 +720,13 @@ $('#review-body').addEventListener('click', (e) => {
   const un = e.target.closest('[data-unmark]');
   if (un) {
     confirmUnmark(un.dataset.unmark.split(' '));
+    return;
+  }
+  const go = e.target.closest('[data-goto]');
+  if (go) {
+    e.stopPropagation();
+    review.close();
+    openReader(+go.dataset.reading, false, go.dataset.goto);
     return;
   }
   const open = e.target.closest('[data-open]');
@@ -1212,7 +1227,8 @@ let wakeLock = null;
 
 const reader = $('#reader');
 
-async function openReader(index, autoplay) {
+// `at` is a verse ref to scroll to once the text is in, e.g. from Verses to discuss.
+async function openReader(index, autoplay, at) {
   stopSpeech();
   narrationChapter = -1;
   const item = plan[index];
@@ -1247,6 +1263,8 @@ async function openReader(index, autoplay) {
       renderVerses(body, verses, `${BOOK_CODES[item.book]}.${item.chapters[ci]}`, ci, chapterSeg);
     });
     refreshVerseMarks();
+    const target = at && body.querySelector(`.verse[data-ref="${at}"]`);
+    if (target) jumpTo(target, false);
     // Copyrighted translations: show the required notice and links; report licensed views.
     const notice = renderNotice(chapters);
     if (notice) body.append(notice);
@@ -1443,10 +1461,13 @@ function updateJumpBtn() {
 $('#jump-mark').addEventListener('click', () => {
   const stops = markStops();
   const target = nextStop(stops) ?? stops[0];
-  if (!target) return;
+  if (target) jumpTo(target, true);
+});
+
+function jumpTo(target, animate) {
   const body = $('#reader-body');
   const top = body.scrollTop + target.getBoundingClientRect().top - body.getBoundingClientRect().top - JUMP_OFFSET;
-  const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const smooth = animate && !matchMedia('(prefers-reduced-motion: reduce)').matches;
   body.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'auto' });
   jumpedTo = target;
   // Briefly fill the group, since near the end it may not land at the top.
@@ -1457,7 +1478,7 @@ $('#jump-mark').addEventListener('click', () => {
   clearTimeout(jumpTimer);
   jumpTimer = setTimeout(() => body.querySelectorAll('.verse.jumped').forEach((el) => el.classList.remove('jumped')), 1500);
   updateJumpBtn();
-});
+}
 
 let jumpFrame = 0;
 $('#reader-body').addEventListener('scroll', () => {

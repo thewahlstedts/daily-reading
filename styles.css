@@ -156,7 +156,8 @@ a.set-link { text-decoration: none; }
 /* Reference and unmark share the top line so the verse text gets the card's full width. */
 .review-verse > div { grid-area: 2 / 1 / 3 / 3; padding-right: 8px; }
 .review-verse > .icon-btn { grid-area: 1 / 2; }
-.review-ref { font: 600 13px/1.5 var(--sans); color: var(--accent); white-space: nowrap; display: flex; align-items: baseline; gap: 6px; }
+.review-ref { font: 600 13px/1.5 var(--sans); color: var(--accent); white-space: nowrap; display: flex; align-items: baseline; gap: 6px; background: none; border: 0; padding: 0; cursor: pointer; justify-self: start; }
+.review-text { cursor: pointer; }
 .review-ref small { font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: .03em; }
 .review-verse p { margin: 0; font-family: var(--read-font); font-size: var(--read-size); line-height: var(--read-leading); text-align: var(--read-align); hyphens: var(--read-hyphens); -webkit-hyphens: var(--read-hyphens); }
 .review-verse p.muted { font: 14px var(--sans); color: var(--muted); }
