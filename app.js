@@ -1453,9 +1453,11 @@ function updateJumpBtn() {
   const btn = $('#jump-mark');
   btn.hidden = !stops.length;
   if (!stops.length) return;
-  const wrap = !nextStop(stops);
-  btn.classList.toggle('up', wrap);
-  $('#jump-mark-text').textContent = wrap ? 'First marked verse' : 'Next marked verse';
+  const next = nextStop(stops);
+  btn.classList.toggle('up', !next);
+  // Naming the verse shows how far the jump goes before taking it.
+  const range = runRange(markRun((next ?? stops[0]).dataset.ref));
+  $('#jump-mark-text').textContent = `${next ? 'Next' : 'First'} marked · ${range}`;
 }
 
 $('#jump-mark').addEventListener('click', () => {
