@@ -1396,6 +1396,81 @@ function swipeToClose(sheet, close) {
 
 swipeToClose(reader, closeReader);
 
+// Dragging the text to the left goes on: to the next chapter of a multi-chapter reading,
+// else to the next reading. It slides out and the next part slides in from the right.
+function swipeToNext(el, next) {
+  let swipe = null;
+  const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const slide = (x, then) => {
+    if (still()) { el.style.transition = ''; el.style.transform = ''; then?.(); return; }
+    el.style.transition = 'transform .18s ease-out';
+    el.style.transform = x;
+    setTimeout(() => { el.style.transition = ''; then?.(); }, 180);
+  };
+
+  el.addEventListener('touchstart', (e) => {
+    swipe = e.touches.length === 1 && !getSelection().toString()
+      ? { x: e.touches[0].clientX, y: e.touches[0].clientY, t: e.timeStamp, dx: 0, on: false }
+      : null;
+  }, { passive: true });
+
+  el.addEventListener('touchmove', (e) => {
+    if (!swipe) return;
+    const dx = e.touches[0].clientX - swipe.x;
+    const dy = e.touches[0].clientY - swipe.y;
+    if (!swipe.on) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      if (e.touches.length > 1 || !e.cancelable || -dx < Math.abs(dy) * 2) { swipe = null; return; }
+      swipe.on = true;
+      el.style.transition = 'none';
+    }
+    e.preventDefault();
+    swipe.dx = Math.min(0, dx);
+    el.style.transform = `translateX(${swipe.dx}px)`;
+  }, { passive: false });
+
+  el.addEventListener('touchend', (e) => {
+    if (!swipe?.on) { swipe = null; return; }
+    const { dx, t } = swipe;
+    swipe = null;
+    const fast = dx < -40 && -dx / (e.timeStamp - t) > 0.5;
+    if (!(dx < -el.clientWidth * 0.3 || fast)) { slide(''); return; }
+    slide('translateX(-100%)', () => {
+      if (!next()) { slide(''); return; }
+      el.style.transition = 'none';
+      el.style.transform = 'translateX(100%)';
+      requestAnimationFrame(() => requestAnimationFrame(() => slide('')));
+    });
+  });
+
+  el.addEventListener('touchcancel', () => {
+    if (swipe?.on) slide('');
+    swipe = null;
+  });
+}
+
+// The chapter heading below the top of the view, else the next reading. False at the end.
+function readerNext() {
+  if (!current) return false;
+  const body = $('#reader-body');
+  const top = body.getBoundingClientRect().top;
+  const k = current.segments.findIndex((seg) => seg.el.tagName === 'H3' && seg.ci > 0 && seg.el.getBoundingClientRect().top > top + 16);
+  if (k >= 0) {
+    hideMarkBar();
+    pos = k;
+    pausedAt = -1;
+    if (playing) speakFrom(k);
+    body.scrollTop += current.segments[k].el.getBoundingClientRect().top - top - 8;
+    return true;
+  }
+  if (current.index + 1 >= plan.length) return false;
+  hideMarkBar();
+  openReader(current.index + 1, false);
+  return true;
+}
+
+swipeToNext($('#reader-body'), readerNext);
+
 // Tapping a verse marks it to share with the group. Tapping a marked verse only opens
 // the bar (note, ask, unmark), so a stray tap can't remove a mark or its note.
 $('#reader-body').addEventListener('click', (e) => {
