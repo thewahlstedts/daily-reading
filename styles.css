@@ -167,6 +167,12 @@ a.set-link { text-decoration: none; }
 .review-add-note, .review-ask { font-weight: 600; text-decoration: none; }
 .review-note + .review-ask { display: inline-block; margin-top: 6px; }
 .mark-bar a.link-btn { text-decoration: none; }
+/* Floats just above the mark bar / player, inside the reading column. */
+.jump-wrap { position: relative; height: 0; max-width: 680px; width: 100%; margin: 0 auto; }
+.jump-btn { position: absolute; right: 16px; bottom: 12px; display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--accent); font: 600 14px var(--sans); cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.15); }
+.jump-btn[hidden] { display: none; }
+.jump-btn.up svg { transform: rotate(180deg); }
+.verse.marked.jumped { background: var(--highlight); }
 .review-body .copyright { font: 12px/1.5 var(--sans); color: var(--muted); margin: 8px 4px; }
 .review-body .copyright a { color: var(--accent); }
 .week-nav { display: flex; align-items: center; gap: 2px; }

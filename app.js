@@ -1218,6 +1218,8 @@ async function openReader(index, autoplay) {
   const item = plan[index];
   current = { index, segments: [] };
   pos = 0;
+  jumpedTo = null;
+  $('#jump-mark').hidden = true;
   $('#reader-title').textContent = item.ref;
   $('#reader-sub').textContent = fmtLong.format(dateForIndex(index));
   updateMarkBtn();
@@ -1396,7 +1398,72 @@ function refreshVerseMarks() {
   $('#reader-body').querySelectorAll('.verse').forEach((span) => {
     span.classList.toggle('marked', Boolean(state.marks[span.dataset.ref]));
   });
+  updateJumpBtn();
 }
+
+// Jumping from mark to mark lets someone read along with the group and still find the
+// verses they marked. Each group of consecutive marked verses is one stop.
+const JUMP_OFFSET = 48;  // px of context left above the verse jumped to
+let jumpedTo = null;
+let jumpTimer;
+
+function markStops() {
+  const stops = [];
+  let run = new Set();
+  $('#reader-body').querySelectorAll('.verse.marked').forEach((span) => {
+    if (run.has(span.dataset.ref)) return;
+    run = new Set(markRun(span.dataset.ref));
+    stops.push(span);
+  });
+  return stops;
+}
+
+// The first stop below the top of the view. Near the end the last stops can't scroll
+// to the top, so while the one jumped to is still on screen, go on from it instead.
+function nextStop(stops) {
+  const view = $('#reader-body').getBoundingClientRect();
+  const k = stops.indexOf(jumpedTo);
+  if (k >= 0) {
+    const r = jumpedTo.getBoundingClientRect();
+    if (r.bottom > view.top && r.top < view.bottom) return stops[k + 1] ?? null;
+  }
+  return stops.find((span) => span.getBoundingClientRect().top > view.top + JUMP_OFFSET + 4) ?? null;
+}
+
+function updateJumpBtn() {
+  const stops = markStops();
+  const btn = $('#jump-mark');
+  btn.hidden = !stops.length;
+  if (!stops.length) return;
+  const wrap = !nextStop(stops);
+  btn.classList.toggle('up', wrap);
+  $('#jump-mark-text').textContent = wrap ? 'First marked verse' : 'Next marked verse';
+}
+
+$('#jump-mark').addEventListener('click', () => {
+  const stops = markStops();
+  const target = nextStop(stops) ?? stops[0];
+  if (!target) return;
+  const body = $('#reader-body');
+  const top = body.scrollTop + target.getBoundingClientRect().top - body.getBoundingClientRect().top - JUMP_OFFSET;
+  const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  body.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'auto' });
+  jumpedTo = target;
+  // Briefly fill the group, since near the end it may not land at the top.
+  body.querySelectorAll('.verse.jumped').forEach((el) => el.classList.remove('jumped'));
+  markRun(target.dataset.ref).forEach((ref) => {
+    body.querySelectorAll(`[data-ref="${ref}"]`).forEach((el) => el.classList.add('jumped'));
+  });
+  clearTimeout(jumpTimer);
+  jumpTimer = setTimeout(() => body.querySelectorAll('.verse.jumped').forEach((el) => el.classList.remove('jumped')), 1500);
+  updateJumpBtn();
+});
+
+let jumpFrame = 0;
+$('#reader-body').addEventListener('scroll', () => {
+  if (jumpFrame || $('#jump-mark').hidden) return;
+  jumpFrame = requestAnimationFrame(() => { jumpFrame = 0; updateJumpBtn(); });
+}, { passive: true });
 
 // After a tap: offer a note, a question or unmarking for the group, or undo an unmark.
 let markBarRef = null;
