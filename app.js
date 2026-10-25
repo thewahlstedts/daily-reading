@@ -1476,8 +1476,17 @@ $('#reader-body').addEventListener('click', (e) => {
 });
 
 function refreshVerseMarks() {
-  $('#reader-body').querySelectorAll('.verse').forEach((span) => {
+  const body = $('#reader-body');
+  body.querySelectorAll('.verse').forEach((span) => {
     span.classList.toggle('marked', Boolean(state.marks[span.dataset.ref]));
+    span.classList.remove('noted');
+  });
+  // An icon after the last line of each group with a note, so notes can be found again.
+  markStops().forEach((span) => {
+    const run = markRun(span.dataset.ref);
+    if (!runNote(run)) return;
+    const lines = body.querySelectorAll(`[data-ref="${run[run.length - 1]}"]`);
+    lines[lines.length - 1]?.classList.add('noted');
   });
   updateJumpBtn();
 }
