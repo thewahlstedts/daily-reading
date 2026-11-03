@@ -240,6 +240,8 @@ dialog::backdrop { background: rgba(0,0,0,.3); }
 .comm-note { margin: 0; padding: .7em 0 .2em; }
 .comm-note + .comm-note { border-top: 1px solid var(--line); }
 .comm-note p { margin: 0 0 .5em; }
+.comm-note { border-radius: 4px; transition: background .6s, box-shadow .6s; }
+.comm-note.here { background: var(--highlight); box-shadow: 0 0 0 8px var(--highlight); }
 .comm-note p, .comm-intro p { text-align: var(--read-align); hyphens: var(--read-hyphens); -webkit-hyphens: var(--read-hyphens); }
 .comm-ref { font-family: var(--sans); font-size: .85em; color: var(--accent); margin-right: 2px; }
 .comm-none { color: var(--muted); font-style: italic; }

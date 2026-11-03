@@ -1476,11 +1476,12 @@ async function fetchCommentary(book, chapter) {
   const data = await res.json();
   const notes = [];
   if (typeof data.chapter?.introduction === 'string' && data.chapter.introduction.trim()) {
-    notes.push(data.chapter.introduction.trim());
+    notes.push({ n: 0, text: data.chapter.introduction.trim() });
   }
   for (const v of Array.isArray(data.chapter?.content) ? data.chapter.content : []) {
     if (v?.type !== 'verse' || !Array.isArray(v.content)) continue;
-    v.content.forEach((c) => { if (typeof c === 'string' && c.trim()) notes.push(c.trim()); });
+    const n = Number.isInteger(v.number) ? v.number : 0;
+    v.content.forEach((c) => { if (typeof c === 'string' && c.trim()) notes.push({ n, text: c.trim() }); });
   }
   const intro = typeof data.book?.introductionSummary === 'string' ? data.book.introductionSummary.trim() : '';
   const result = { intro, notes };
@@ -1525,9 +1526,40 @@ function commentaryNotice() {
   return p;
 }
 
+// Where the reader is: the verse being read aloud (or paused on), else the first verse
+// at the top of the screen. Null at the very top, so the commentary opens at its start.
+function readerSpot() {
+  const seg = current?.segments[pos];
+  if ((playing || pausedAt >= 0 || pos > 0) && seg) return { ci: seg.ci, n: seg.n };
+  const body = $('#reader-body');
+  if (body.scrollTop < 40) return null;
+  const top = body.getBoundingClientRect().top;
+  const el = [...body.querySelectorAll('.verse')].find((v) => v.getBoundingClientRect().bottom > top + 8);
+  const s = el && current.segments[+el.dataset.seg];
+  return s ? { ci: s.ci, n: s.n } : null;
+}
+
+// Scrolls the commentary to the notes for a verse: the latest starting point at or before
+// it in that chapter, from its first note (a section overview comes before verse notes).
+function scrollCommentaryTo(spot, noteEls) {
+  if (!spot) return;
+  const inChapter = noteEls.filter((x) => x.ci === spot.ci);
+  const start = Math.max(-1, ...inChapter.filter((x) => x.n <= spot.n).map((x) => x.n));
+  const target = inChapter.find((x) => x.n === start)?.el
+    || $('#commentary-body').querySelectorAll('h3')[spot.ci];
+  if (!target) return;
+  const body = $('#commentary-body');
+  body.scrollTop += target.getBoundingClientRect().top - body.getBoundingClientRect().top - 12;
+  if (target.classList.contains('comm-note')) {
+    target.classList.add('here');
+    setTimeout(() => target.classList.remove('here'), 2000);
+  }
+}
+
 async function openCommentary() {
   if (!current) return;
   const item = plan[current.index];
+  const spot = readerSpot();
   const gen = ++commentaryGen;
   $('#commentary-sub').textContent = item.ref;
   const body = $('#commentary-body');
@@ -1551,6 +1583,7 @@ async function openCommentary() {
       }));
       body.append(details);
     }
+    const noteEls = [];
     chapters.forEach(({ notes }, ci) => {
       const heading = document.createElement('h3');
       heading.textContent = `${item.book} ${item.chapters[ci]}`;
@@ -1561,9 +1594,14 @@ async function openCommentary() {
         none.textContent = 'No commentary for this chapter.';
         body.append(none);
       }
-      notes.forEach((text) => body.append(commentaryNote(text)));
+      notes.forEach(({ n, text }) => {
+        const el = commentaryNote(text);
+        noteEls.push({ ci, n, el });
+        body.append(el);
+      });
     });
     body.append(commentaryNotice());
+    scrollCommentaryTo(spot, noteEls);
   } catch (err) {
     if (gen !== commentaryGen) return;
     const status = document.createElement('p');
