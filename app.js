@@ -1263,6 +1263,7 @@ async function openReader(index, autoplay, at) {
       renderVerses(body, verses, `${BOOK_CODES[item.book]}.${item.chapters[ci]}`, ci, chapterSeg);
     });
     refreshVerseMarks();
+    markCommentaryVerses(index);
     const target = at && body.querySelector(`.verse[data-ref="${at}"]`);
     if (target) jumpTo(target, false);
     // Copyrighted translations: show the required notice and links; report licensed views.
@@ -1464,6 +1465,12 @@ swipeToNext($('#reader-body'), readerNext);
 $('#reader-body').addEventListener('click', (e) => {
   const v = e.target.closest('.verse');
   if (!v || !current) return;
+  // A verse number with commentary opens it there instead of marking the verse.
+  if (e.target.closest('sup.has-comm')) {
+    const seg = current.segments[+v.dataset.seg];
+    if (seg) openCommentary({ ci: seg.ci, n: seg.n });
+    return;
+  }
   const ref = v.dataset.ref;
   if (!state.marks[ref]) {
     state.marks[ref] = { i: current.index, at: isoDate(new Date()), t: bible().id };
@@ -1474,6 +1481,28 @@ $('#reader-body').addEventListener('click', (e) => {
   }
   showMarkBar(ref);
 });
+
+// Verse numbers where a commentary note starts get a tint and open that note. Loaded
+// after the text; offline without saved commentary they just stay plain.
+async function markCommentaryVerses(index) {
+  const item = plan[index];
+  let chapters;
+  try {
+    chapters = await Promise.all(item.chapters.map((c) => fetchCommentary(item.book, c)));
+  } catch { return; }
+  if (current?.index !== index) return;
+  chapters.forEach(({ notes }, ci) => {
+    const starts = new Set(notes.map((x) => x.n).filter((n) => n > 0));
+    current.segments.forEach((seg) => {
+      if (seg.ci !== ci || !starts.has(seg.n)) return;
+      const sup = seg.el.querySelector('sup');
+      if (!sup) return;
+      sup.classList.add('has-comm');
+      sup.setAttribute('role', 'button');
+      sup.setAttribute('aria-label', `Commentary on verse ${seg.n}`);
+    });
+  });
+}
 
 function refreshVerseMarks() {
   const body = $('#reader-body');
@@ -1546,7 +1575,8 @@ function jumpTo(target, animate) {
   jumpedTo = target;
   // Briefly fill the group, since near the end it may not land at the top.
   body.querySelectorAll('.verse.jumped').forEach((el) => el.classList.remove('jumped'));
-  markRun(target.dataset.ref).forEach((ref) => {
+  const run = markRun(target.dataset.ref);
+  (run.length ? run : [target.dataset.ref]).forEach((ref) => {
     body.querySelectorAll(`[data-ref="${ref}"]`).forEach((el) => el.classList.add('jumped'));
   });
   clearTimeout(jumpTimer);
@@ -1653,16 +1683,25 @@ async function fetchCommentary(book, chapter) {
 
 // A note is paragraphs separated by newlines; the first starts with the passage it covers
 // ("1:1–2:3 These verses…"), shown as a label. Built with DOM nodes (API text is untrusted).
-function commentaryNote(text) {
+// When `verseRef(chapter, verse)` finds that passage's first verse in the reader, the
+// label is a button that goes back to it.
+function commentaryNote(text, verseRef) {
   const div = document.createElement('div');
   div.className = 'comm-note';
   text.split('\n').filter((t) => t.trim()).forEach((para, k) => {
     const p = document.createElement('p');
     const ref = k === 0 && para.match(/^(\d+:\d+(?:[–-]\d+(?::\d+)?)?)\s+/);
     if (ref) {
-      const label = document.createElement('strong');
+      const [c, v] = ref[1].match(/^(\d+):(\d+)/).slice(1);
+      const target = verseRef?.(c, v);
+      const label = document.createElement(target ? 'button' : 'strong');
       label.className = 'comm-ref';
       label.textContent = ref[1];
+      if (target) {
+        label.type = 'button';
+        label.dataset.goto = target;
+        label.setAttribute('aria-label', `Go to ${ref[1]} in the reading`);
+      }
       p.append(label, ' ', para.slice(ref[0].length));
     } else {
       p.textContent = para;
@@ -1701,28 +1740,56 @@ function readerSpot() {
   return s ? { ci: s.ci, n: s.n } : null;
 }
 
-// Scrolls the commentary to the notes for a verse: the latest starting point at or before
-// it in that chapter, from its first note (a section overview comes before verse notes).
-function scrollCommentaryTo(spot, noteEls) {
-  if (!spot) return;
-  const inChapter = noteEls.filter((x) => x.ci === spot.ci);
+// The open commentary's notes ({ ci, n, el }), for finding and following verses.
+let commentaryNotes = [];
+let followedNote = null;
+let commentaryTouched = 0;
+
+// The notes for a verse: the latest starting point at or before it in that chapter, from
+// its first note (a section overview comes before verse notes); else the chapter heading.
+function noteFor(spot) {
+  const inChapter = commentaryNotes.filter((x) => x.ci === spot.ci);
   const start = Math.max(-1, ...inChapter.filter((x) => x.n <= spot.n).map((x) => x.n));
-  const target = inChapter.find((x) => x.n === start)?.el
-    || $('#commentary-body').querySelectorAll('h3')[spot.ci];
-  if (!target) return;
+  return inChapter.find((x) => x.n === start)?.el
+    || $('#commentary-body').querySelectorAll('h3')[spot.ci] || null;
+}
+
+function showNote(target, smooth) {
+  followedNote = target;
   const body = $('#commentary-body');
-  body.scrollTop += target.getBoundingClientRect().top - body.getBoundingClientRect().top - 12;
+  const top = body.scrollTop + target.getBoundingClientRect().top - body.getBoundingClientRect().top - 12;
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  body.scrollTo({ top: Math.max(0, top), behavior: smooth && !still ? 'smooth' : 'auto' });
+  body.querySelectorAll('.comm-note.here').forEach((el) => el.classList.remove('here'));
   if (target.classList.contains('comm-note')) {
     target.classList.add('here');
     setTimeout(() => target.classList.remove('here'), 2000);
   }
 }
 
-async function openCommentary() {
+// While listening with the commentary open, keep it on the verse being read, unless the
+// person scrolled it in the last few seconds (they're reading something else).
+function followCommentary(seg) {
+  if (!commentary.open || !commentaryNotes.length || !seg) return;
+  if (Date.now() - commentaryTouched < 8000) return;
+  const target = noteFor(seg);
+  if (target && target !== followedNote) showNote(target, true);
+}
+
+function updateCommentaryPlay() {
+  const btn = $('#commentary-play');
+  btn.classList.toggle('playing', playing);
+  btn.setAttribute('aria-label', playing ? 'Pause' : 'Listen');
+}
+
+// Opens at `spot` ({ ci, n }) if given, else wherever the reader is.
+async function openCommentary(spot = readerSpot()) {
   if (!current) return;
   const item = plan[current.index];
-  const spot = readerSpot();
   const gen = ++commentaryGen;
+  commentaryNotes = [];
+  followedNote = null;
+  $('#commentary-play').hidden = true;
   $('#commentary-sub').textContent = item.ref;
   const body = $('#commentary-body');
   body.innerHTML = '<p class="status">Loading…</p>';
@@ -1745,7 +1812,11 @@ async function openCommentary() {
       }));
       body.append(details);
     }
-    const noteEls = [];
+    const code = BOOK_CODES[item.book];
+    const verseRef = (c, v) => {
+      const ref = `${code}.${c}.${v}`;
+      return $('#reader-body').querySelector(`.verse[data-ref="${ref}"]`) ? ref : null;
+    };
     chapters.forEach(({ notes }, ci) => {
       const heading = document.createElement('h3');
       heading.textContent = `${item.book} ${item.chapters[ci]}`;
@@ -1757,13 +1828,16 @@ async function openCommentary() {
         body.append(none);
       }
       notes.forEach(({ n, text }) => {
-        const el = commentaryNote(text);
-        noteEls.push({ ci, n, el });
+        const el = commentaryNote(text, verseRef);
+        commentaryNotes.push({ ci, n, el });
         body.append(el);
       });
     });
     body.append(commentaryNotice());
-    scrollCommentaryTo(spot, noteEls);
+    const target = spot && noteFor(spot);
+    if (target) showNote(target, false);
+    updateCommentaryPlay();
+    $('#commentary-play').hidden = !current.segments.length;
   } catch (err) {
     if (gen !== commentaryGen) return;
     const status = document.createElement('p');
@@ -1776,8 +1850,25 @@ async function openCommentary() {
 }
 
 const commentary = $('#commentary');
-$('#commentary-btn').addEventListener('click', openCommentary);
+$('#commentary-btn').addEventListener('click', () => openCommentary());
 $('#commentary-close').addEventListener('click', () => commentary.close());
+$('#commentary-play').addEventListener('click', () => {
+  commentaryTouched = 0;
+  if (playing) { pause(); return; }
+  followedNote = null;
+  play();
+});
+['touchstart', 'wheel', 'keydown'].forEach((type) => {
+  $('#commentary-body').addEventListener(type, () => { commentaryTouched = Date.now(); }, { passive: true });
+});
+// A note's reference goes back to that verse in the reader.
+$('#commentary-body').addEventListener('click', (e) => {
+  const ref = e.target.closest('.comm-ref[data-goto]')?.dataset.goto;
+  const target = ref && $('#reader-body').querySelector(`.verse[data-ref="${ref}"]`);
+  if (!target) return;
+  commentary.close();
+  jumpTo(target, false);
+});
 swipeToClose(commentary, () => commentary.close());
 swipeToClose(review, () => review.close());
 swipeToClose(summaryDialog, () => summaryDialog.close());
@@ -1838,6 +1929,7 @@ function highlight(i) {
   if (!seg) return;
   if (seg.el.classList.contains('verse')) $('#reader-body').querySelectorAll(`[data-seg="${i}"]`).forEach((el) => el.classList.add('speaking'));
   seg.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  followCommentary(seg);
 }
 
 function play() {
@@ -2022,6 +2114,7 @@ async function setPlaying(on) {
   playing = on;
   $('#play-btn').classList.toggle('playing', on);
   $('#play-btn').setAttribute('aria-label', on ? 'Pause' : 'Listen');
+  updateCommentaryPlay();
   // Keep the screen on while listening; speech stops on many phones once they lock.
   try {
     if (on && !wakeLock && 'wakeLock' in navigator) {

@@ -175,7 +175,7 @@ a.set-link { text-decoration: none; }
 .jump-btn { position: absolute; right: 16px; bottom: 12px; display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--accent); font: 600 14px var(--sans); cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.15); }
 .jump-btn[hidden] { display: none; }
 .jump-btn.up svg { transform: rotate(180deg); }
-.verse.marked.jumped { background: var(--highlight); }
+.verse.jumped { background: var(--highlight); }
 .review-body .copyright { font: 12px/1.5 var(--sans); color: var(--muted); margin: 8px 4px; }
 .review-body .copyright a { color: var(--accent); }
 .week-nav { display: flex; align-items: center; gap: 2px; }
@@ -253,7 +253,11 @@ dialog::backdrop { background: rgba(0,0,0,.3); }
 .comm-note { border-radius: 4px; transition: background .6s, box-shadow .6s; }
 .comm-note.here { background: var(--highlight); box-shadow: 0 0 0 8px var(--highlight); }
 .comm-note p, .comm-intro p { text-align: var(--read-align); hyphens: var(--read-hyphens); -webkit-hyphens: var(--read-hyphens); }
-.comm-ref { font-family: var(--sans); font-size: .85em; color: var(--accent); margin-right: 2px; }
+.comm-ref { font-family: var(--sans); font-size: .85em; font-weight: 700; color: var(--accent); margin-right: 2px; }
+button.comm-ref { background: var(--accent-soft); border: 0; border-radius: 6px; padding: 1px 6px; cursor: pointer; line-height: inherit; }
+/* Verse numbers that open a commentary note: a soft tint, with a larger tap area. */
+.verse sup.has-comm { position: relative; background: var(--accent-soft); border-radius: 4px; padding: 0 .3em; cursor: pointer; }
+.verse sup.has-comm::after { content: ''; position: absolute; inset: -10px -6px; }
 .comm-none { color: var(--muted); font-style: italic; }
 .comm-intro { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 24px; }
 .comm-intro summary { cursor: pointer; font: 600 15px/1.4 var(--sans); color: var(--accent); }
