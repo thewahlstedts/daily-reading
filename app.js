@@ -574,6 +574,10 @@ $('#meeting-review-btn').addEventListener('click', () => {
   openReview({ from: w.startIdx, to: w.endIdx, label: `Meeting today · ${$('#meeting-title').textContent}` });
 });
 $('#review-all-btn').addEventListener('click', () => openReview(null));
+$('#meeting-read-btn').addEventListener('click', () => {
+  const w = meetingToday();
+  if (w) openWeekReader(w);
+});
 
 // Closing the meeting card asks first: it doesn't come back that day (the
 // summary and verses to discuss move back to the week section).
@@ -1218,7 +1222,7 @@ async function fetchTimings(url) {
 
 // ---------- Reader + speech ----------
 
-let current = null;      // { index, segments: [{ el, speak, ci, n }], narration: [{ url, timings }] | null }
+let current = null;      // { indexes, week, title, date, chapters: [{ i, book, chapter }], segments: [{ el, speak, ci, n }], narration: [{ url, timings }] | null }
 let pos = 0;             // segment being spoken
 let playing = false;
 let gen = 0;             // bumps whenever playback is interrupted, to ignore stale utterance events
@@ -1228,16 +1232,40 @@ let wakeLock = null;
 const reader = $('#reader');
 
 // `at` is a verse ref to scroll to once the text is in, e.g. from Verses to discuss.
-async function openReader(index, autoplay, at) {
+function openReader(index, autoplay, at) {
+  return loadReader([index], { title: plan[index].ref, date: fmtLong.format(dateForIndex(index)) }, autoplay, at);
+}
+
+// Meeting day: the whole week in one scroll, from its first reading, so the group can
+// read straight through (or jump from mark to mark) without swiping from day to day.
+function openWeekReader(w) {
+  const indexes = [];
+  for (let i = Math.max(w.startIdx, 0); i <= Math.min(w.endIdx, plan.length - 1); i++) indexes.push(i);
+  if (!indexes.length) return;
+  const first = indexes[0], last = indexes[indexes.length - 1];
+  loadReader(indexes, {
+    week: true,
+    title: weekLabel(first, last),
+    date: fmtRange.formatRange(dateForIndex(first), dateForIndex(last)),
+  });
+}
+
+// Readings that belong to the open reader (one, or a week of them).
+const readerDone = () => Boolean(current?.indexes.every(isRead));
+
+async function loadReader(indexes, { title, date, week = false }, autoplay, at) {
   stopSpeech();
   narrationChapter = -1;
-  const item = plan[index];
-  current = { index, segments: [] };
+  const me = {
+    indexes, week, title, date, segments: [],
+    chapters: indexes.flatMap((i) => plan[i].chapters.map((chapter) => ({ i, book: plan[i].book, chapter }))),
+  };
+  current = me;
   pos = 0;
   jumpedTo = null;
   $('#jump-mark').hidden = true;
-  $('#reader-title').textContent = item.ref;
-  $('#reader-sub').textContent = fmtLong.format(dateForIndex(index));
+  $('#reader-title').textContent = title;
+  $('#reader-sub').textContent = date;
   updateMarkBtn();
   updateReaderHint();
   updateRateBtn();
@@ -1247,23 +1275,31 @@ async function openReader(index, autoplay, at) {
   openSheet(reader);
 
   try {
-    const chapters = await Promise.all(item.chapters.map((c) => fetchChapter(item.book, c)));
-    if (current?.index !== index) return;
-    current.narration = navigator.onLine && useNarration() && chapters.every((ch) => ch.audio?.[narratorId()])
+    const chapters = await Promise.all(me.chapters.map((c) => fetchChapter(c.book, c.chapter)));
+    if (current !== me) return;
+    me.narration = navigator.onLine && useNarration() && chapters.every((ch) => ch.audio?.[narratorId()])
       ? chapters.map((ch) => ({ ...ch.audio[narratorId()], timings: null }))
       : null;
-    $('#reader-sub').textContent = `${fmtLong.format(dateForIndex(index))}\n${bible().name}`;
+    $('#reader-sub').textContent = `${date}\n${bible().name}`;
     body.innerHTML = '';
     chapters.forEach(({ verses }, ci) => {
+      const { i, book, chapter } = me.chapters[ci];
+      // In a week, each day's reading starts under its date.
+      if (week && me.chapters[ci - 1]?.i !== i) {
+        const day = document.createElement('div');
+        day.className = 'reader-day';
+        day.textContent = fmtLong.format(dateForIndex(i));
+        body.append(day);
+      }
       const heading = document.createElement('h3');
-      heading.textContent = `${item.book} ${item.chapters[ci]}`;
+      heading.textContent = `${book} ${chapter}`;
       body.append(heading);
-      const chapterSeg = { el: heading, ci, n: 0, speak: `${apiBook(item.book) === 'Psalms' ? 'Psalm' : item.book} chapter ${item.chapters[ci]}.` };
-      current.segments.push(chapterSeg);
-      renderVerses(body, verses, `${BOOK_CODES[item.book]}.${item.chapters[ci]}`, ci, chapterSeg);
+      const chapterSeg = { el: heading, ci, n: 0, speak: `${apiBook(book) === 'Psalms' ? 'Psalm' : book} chapter ${chapter}.` };
+      me.segments.push(chapterSeg);
+      renderVerses(body, verses, `${BOOK_CODES[book]}.${chapter}`, ci, chapterSeg);
     });
     refreshVerseMarks();
-    markCommentaryVerses(index);
+    markCommentaryVerses(me);
     const target = at && body.querySelector(`.verse[data-ref="${at}"]`);
     if (target) jumpTo(target, false);
     // Copyrighted translations: show the required notice and links; report licensed views.
@@ -1272,6 +1308,7 @@ async function openReader(index, autoplay, at) {
     reportFums(chapters.map((ch) => ch.fumsToken));
     if (autoplay) play();
   } catch (err) {
+    if (current !== me) return;
     const status = document.createElement('p');
     status.className = 'status';
     status.textContent = navigator.onLine
@@ -1450,11 +1487,13 @@ function swipeToNext(el, next) {
   });
 }
 
-// The next day's reading. False at the end of the plan.
+// The next day's reading. False at the end of the plan, and in a week (it's all there).
 function readerNext() {
-  if (!current || current.index + 1 >= plan.length) return false;
+  if (!current || current.week) return false;
+  const next = current.indexes[0] + 1;
+  if (next >= plan.length) return false;
   hideMarkBar();
-  openReader(current.index + 1, false);
+  openReader(next, false);
   return true;
 }
 
@@ -1472,8 +1511,9 @@ $('#reader-body').addEventListener('click', (e) => {
     return;
   }
   const ref = v.dataset.ref;
-  if (!state.marks[ref]) {
-    state.marks[ref] = { i: current.index, at: isoDate(new Date()), t: bible().id };
+  const reading = current.chapters[current.segments[+v.dataset.seg]?.ci]?.i;
+  if (!state.marks[ref] && reading != null) {
+    state.marks[ref] = { i: reading, at: isoDate(new Date()), t: bible().id };
     save();
     render();
     refreshVerseMarks();
@@ -1484,13 +1524,12 @@ $('#reader-body').addEventListener('click', (e) => {
 
 // Verse numbers where a commentary note starts get a tint and open that note. Loaded
 // after the text; offline without saved commentary they just stay plain.
-async function markCommentaryVerses(index) {
-  const item = plan[index];
+async function markCommentaryVerses(me) {
   let chapters;
   try {
-    chapters = await Promise.all(item.chapters.map((c) => fetchCommentary(item.book, c)));
+    chapters = await Promise.all(me.chapters.map((c) => fetchCommentary(c.book, c.chapter)));
   } catch { return; }
-  if (current?.index !== index) return;
+  if (current !== me) return;
   chapters.forEach(({ notes }, ci) => {
     const starts = new Set(notes.map((x) => x.n).filter((n) => n > 0));
     current.segments.forEach((seg) => {
@@ -1557,7 +1596,9 @@ function updateJumpBtn() {
   const next = nextStop(stops);
   btn.classList.toggle('up', !next);
   // Naming the verse shows how far the jump goes before taking it.
-  const range = runRange(markRun((next ?? stops[0]).dataset.ref));
+  // A week can span books, so there it names the book too.
+  const run = markRun((next ?? stops[0]).dataset.ref);
+  const range = current?.week ? runLabel(run) : runRange(run);
   $('#jump-mark-text').textContent = `${next ? 'Next' : 'First'} marked · ${range}`;
 }
 
@@ -1785,41 +1826,44 @@ function updateCommentaryPlay() {
 // Opens at `spot` ({ ci, n }) if given, else wherever the reader is.
 async function openCommentary(spot = readerSpot()) {
   if (!current) return;
-  const item = plan[current.index];
+  const me = current;
   const gen = ++commentaryGen;
   commentaryNotes = [];
   followedNote = null;
   $('#commentary-play').hidden = true;
-  $('#commentary-sub').textContent = item.ref;
+  $('#commentary-sub').textContent = me.title;
   const body = $('#commentary-body');
   body.innerHTML = '<p class="status">Loading…</p>';
   body.scrollTop = 0;
   openSheet(commentary);
   try {
-    const chapters = await Promise.all(item.chapters.map((c) => fetchCommentary(item.book, c)));
-    if (gen !== commentaryGen || !commentary.open) return;
+    const chapters = await Promise.all(me.chapters.map((c) => fetchCommentary(c.book, c.chapter)));
+    if (gen !== commentaryGen || !commentary.open || current !== me) return;
     body.replaceChildren();
-    const intro = chapters.find((ch) => ch.intro)?.intro;
-    if (intro) {
+    // One "About" box per book (a week can span two).
+    const books = [...new Set(me.chapters.map((c) => c.book))];
+    books.forEach((book) => {
+      const intro = chapters.find((ch, ci) => me.chapters[ci].book === book && ch.intro)?.intro;
+      if (!intro) return;
       const details = document.createElement('details');
       details.className = 'comm-intro';
       const summary = document.createElement('summary');
-      summary.textContent = `About ${apiBook(item.book)}`;
+      summary.textContent = `About ${apiBook(book)}`;
       details.append(summary, ...intro.split('\n').filter((t) => t.trim()).map((t) => {
         const p = document.createElement('p');
         p.textContent = t;
         return p;
       }));
       body.append(details);
-    }
-    const code = BOOK_CODES[item.book];
-    const verseRef = (c, v) => {
-      const ref = `${code}.${c}.${v}`;
-      return $('#reader-body').querySelector(`.verse[data-ref="${ref}"]`) ? ref : null;
-    };
+    });
     chapters.forEach(({ notes }, ci) => {
+      const { book, chapter } = me.chapters[ci];
+      const verseRef = (c, v) => {
+        const ref = `${BOOK_CODES[book]}.${c}.${v}`;
+        return $('#reader-body').querySelector(`.verse[data-ref="${ref}"]`) ? ref : null;
+      };
       const heading = document.createElement('h3');
-      heading.textContent = `${item.book} ${item.chapters[ci]}`;
+      heading.textContent = `${book} ${chapter}`;
       body.append(heading);
       if (!notes.length) {
         const none = document.createElement('p');
@@ -1883,18 +1927,28 @@ $('#next-verse').addEventListener('click', () => skip(1));
 
 $('#mark-btn').addEventListener('click', () => {
   if (!current) return;
-  const i = current.index;
-  if (isRead(i)) {
-    setRead(i, false);
+  const { indexes, title } = current;
+  if (readerDone()) {
+    setReadAll(indexes, false);
     updateMarkBtn();
     return;
   }
-  // Done with this reading: mark it and return home, with a moment to undo.
-  setRead(i, true);
+  // Done with this reading (or week): mark it and return home, with a moment to undo.
+  const marked = indexes.filter((i) => !isRead(i));
+  setReadAll(marked, true);
   closeReader();
-  undoCatchUp = () => setRead(i, false);
-  showToast(`${plan[i].ref} marked as read`);
+  undoCatchUp = () => setReadAll(marked, false);
+  showToast(`${title} marked as read`);
 });
+
+function setReadAll(indexes, value) {
+  indexes.forEach((i) => {
+    if (value) state.read[i] = isoDate(new Date());
+    else delete state.read[i];
+  });
+  save();
+  render();
+}
 
 const RATES = [0.75, 0.9, 1, 1.15, 1.3, 1.5];
 $('#rate-btn').addEventListener('click', () => {
@@ -1913,7 +1967,7 @@ function setRate(r) {
 }
 
 function updateMarkBtn() {
-  const done = current && isRead(current.index);
+  const done = readerDone();
   const btn = $('#mark-btn');
   btn.textContent = done ? '✓ Read' : 'Mark read';
   btn.className = `btn ${done ? 'done' : 'ghost'}`;
@@ -1994,8 +2048,8 @@ function finishListening() {
   setPlaying(false);
   pos = 0;
   highlight(-1);
-  if (current && state.automark && !isRead(current.index)) {
-    setRead(current.index, true);
+  if (current && state.automark && !readerDone()) {
+    setReadAll(current.indexes.filter((i) => !isRead(i)), true);
     updateMarkBtn();
   }
 }
@@ -2094,7 +2148,7 @@ narrationAudio.addEventListener('ended', () => {
 function updateMediaSession() {
   if (!('mediaSession' in navigator) || !current) return;
   navigator.mediaSession.metadata = new MediaMetadata({
-    title: plan[current.index].ref,
+    title: current.title,
     artist: `${bible().name} · ${narratorName()}`,
     album: 'Daily Reading',
     artwork: [{ src: 'icon-512.png', sizes: '512x512', type: 'image/png' }],
