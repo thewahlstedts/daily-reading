@@ -15,7 +15,8 @@
 //
 // Secrets: ADMIN_EMAILS (comma-separated). Uses the service role key the platform provides.
 
-const ALLOWED_ORIGINS = ['https://thewahlstedts.github.io', 'http://localhost:8787'];
+// capacitor://localhost is the iOS app.
+const ALLOWED_ORIGINS = ['https://thewahlstedts.github.io', 'http://localhost:8787', 'capacitor://localhost'];
 const DAYS = 30;       // daily chart and the longest "active" window
 const PAGE = 1000;     // PostgREST's max_rows
 const MAX_PAGES = 100;
