@@ -14,7 +14,8 @@ const MAX_MESSAGE = 2000;
 const MAX_CONTEXT = 500;
 const COOLDOWN_MS = 60_000;
 
-const ALLOWED_ORIGINS = ['https://thewahlstedts.github.io', 'http://localhost:8787'];
+// capacitor://localhost is the iOS app.
+const ALLOWED_ORIGINS = ['https://thewahlstedts.github.io', 'http://localhost:8787', 'capacitor://localhost'];
 
 function cors(origin: string | null): Record<string, string> {
   return {

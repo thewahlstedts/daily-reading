@@ -3,6 +3,16 @@
 const STORE_KEY = 'daily-reading:v1';
 const $ = (sel) => document.querySelector(sel);
 
+// ---------- iOS app ----------
+
+// In the iOS app (Capacitor) the same files run from capacitor://localhost.
+// Capacitor injects window.Capacitor before any script runs; plugins are called
+// through its bridge directly, so the web app still needs no bundler.
+const isNative = () => Boolean(window.Capacitor?.isNativePlatform?.());
+const nativeCall = (plugin, method, options = {}) => window.Capacitor.nativePromise(plugin, method, options);
+// Links meant for other people (share links, the dashboard) point at the website.
+const LIVE_URL = 'https://thewahlstedts.github.io/daily-reading/';
+
 // showModal() focuses the sheet's first button (the back arrow), which iOS
 // outlines even after a tap; focus the sheet itself instead.
 function openSheet(d) {
@@ -137,6 +147,7 @@ let plan = [];         // [{ ref, book, chapters: [n...] }]
 function save() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch {}
   window.onStateSaved?.();
+  document.dispatchEvent(new Event('statesaved'));
 }
 
 // ---------- Dates (day granularity, DST-safe) ----------
@@ -2231,7 +2242,10 @@ function applyTheme() {
   if (state.theme && state.theme !== 'auto') root.dataset.theme = state.theme;
   else delete root.dataset.theme;
   // Match the browser/status bar to the page background.
-  $('#theme-color').content = getComputedStyle(root).getPropertyValue('--bg').trim();
+  const bg = getComputedStyle(root).getPropertyValue('--bg').trim();
+  $('#theme-color').content = bg;
+  // The iOS app ignores theme-color, so set the status bar text color instead.
+  if (isNative()) nativeCall('SystemBars', 'setStyle', { style: isDarkColor(bg) ? 'DARK' : 'LIGHT' }).catch(() => {});
   document.querySelectorAll('.swatch').forEach((b) => b.setAttribute('aria-checked', b.dataset.theme === (state.theme || 'auto')));
 }
 
@@ -2248,6 +2262,14 @@ $('#theme-picker').addEventListener('click', (e) => {
   save();
   applyTheme();
 });
+
+// For a #rrggbb color: is it dark enough to need light text on top?
+function isDarkColor(hex) {
+  const m = hex.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if (!m) return matchMedia('(prefers-color-scheme: dark)').matches;
+  const [r, g, b] = m.slice(1).map((h) => parseInt(h, 16));
+  return 0.299 * r + 0.587 * g + 0.114 * b < 128;
+}
 
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 applyTheme();
@@ -2492,7 +2514,7 @@ $('#import-file').addEventListener('change', async (e) => {
 // A shared link carries the sharer's start date (?start=YYYY-MM-DD) so the
 // recipient's schedule lines up day for day.
 function shareUrl() {
-  const url = new URL(location.href);
+  const url = new URL(isNative() ? LIVE_URL : location.href);
   url.search = '';
   url.hash = '';
   url.searchParams.set('start', state.start);
@@ -2582,12 +2604,14 @@ function handleSharedLink() {
 // Re-render when the app is reopened on a new day.
 document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
 
-if ('serviceWorker' in navigator) {
+// The iOS app has its files on the device already, and WKWebView doesn't run
+// service workers from the app's own origin.
+if ('serviceWorker' in navigator && !isNative()) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 // Ask the browser not to evict the offline copies under storage pressure. Only
 // from the installed app, since some browsers prompt for this in a tab.
-if (navigator.standalone || matchMedia('(display-mode: standalone)').matches) {
+if (!isNative() && (navigator.standalone || matchMedia('(display-mode: standalone)').matches)) {
   navigator.storage?.persist?.().catch(() => {});
 }
 
@@ -2609,7 +2633,7 @@ let swControlled;
 
 async function prefetchForOffline() {
   const b = bible();
-  if (b.licensed || !navigator.onLine || !('serviceWorker' in navigator)) return;
+  if (b.licensed || !navigator.onLine || !('serviceWorker' in navigator) || isNative()) return;
   swControlled ??= navigator.serviceWorker.controller ? Promise.resolve()
     : new Promise((resolve) => navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true }));
   await swControlled;
