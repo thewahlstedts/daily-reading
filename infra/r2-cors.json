@@ -1,0 +1,13 @@
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": ["https://thewahlstedts.github.io", "http://localhost:8787", "capacitor://localhost"],
+        "methods": ["GET", "HEAD"],
+        "headers": ["Range"]
+      },
+      "exposeHeaders": ["Content-Length", "Content-Range"],
+      "maxAgeSeconds": 86400
+    }
+  ]
+}
