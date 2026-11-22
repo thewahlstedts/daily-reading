@@ -1,0 +1,18 @@
+{
+  "name": "daily-reading-ios",
+  "private": true,
+  "description": "Native iOS shell (Capacitor) for the Daily Reading web app. The web app itself has no build step; this only builds the iPhone app.",
+  "scripts": {
+    "ios:web": "node tools/ios_web.mjs",
+    "ios:sync": "node tools/ios_web.mjs && cap sync ios",
+    "ios:open": "cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.5.3",
+    "@capacitor/ios": "8.5.3",
+    "@capacitor/local-notifications": "8.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}

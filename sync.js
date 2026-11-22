@@ -240,7 +240,9 @@ window.sendSignInLink = async (email) => {
   if (!navigator.onLine) return "You're offline. Connect to the internet to sign in.";
   const { error } = await sb.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: location.origin + location.pathname },
+    // The iOS app can't receive the email's link (it opens Safari), so it points
+    // at the website and the app uses the 6-digit code instead.
+    options: { emailRedirectTo: isNative() ? LIVE_URL : location.origin + location.pathname },
   });
   return error ? error.message : null;
 };
@@ -346,7 +348,7 @@ $('#feedback-form').addEventListener('submit', async (e) => {
   const context = [
     `Translation: ${state.translation}`,
     `Group meets: ${state.meetDay == null ? 'no group' : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][state.meetDay]}`,
-    `Home-screen app: ${navigator.standalone || matchMedia('(display-mode: standalone)').matches ? 'yes' : 'no'}`,
+    isNative() ? 'iOS app' : `Home-screen app: ${navigator.standalone || matchMedia('(display-mode: standalone)').matches ? 'yes' : 'no'}`,
   ].join('\n');
   try {
     const res = await fetch(FEEDBACK_FN, {
@@ -376,14 +378,14 @@ function showExpired() {
 // ---------- Usage counts ----------
 
 // So the owner can see how many devices use the app, signed in or not: once per
-// UTC day per device (and again when the account changes), the live site sends a
-// random device ID and whether it's the home-screen app. Nothing else.
+// UTC day per device (and again when the account changes), the live site and the
+// iOS app send a random device ID and whether it's an installed app. Nothing else.
 const USAGE_FN = `${SUPABASE_URL}/functions/v1/usage`;
 const USAGE_KEY = 'daily-reading:usage';
 let pinging = false; // load fires several auth events at once
 
 async function pingUsage() {
-  if (location.hostname !== 'thewahlstedts.github.io' || !navigator.onLine || pinging) return;
+  if ((location.hostname !== 'thewahlstedts.github.io' && !isNative()) || !navigator.onLine || pinging) return;
   let seen = {};
   try { seen = JSON.parse(localStorage.getItem(USAGE_KEY) || '{}'); } catch {}
   const day = new Date().toISOString().slice(0, 10);
@@ -399,7 +401,7 @@ async function pingUsage() {
     const res = await fetch(USAGE_FN, {
       method: 'POST',
       headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) },
-      body: JSON.stringify({ device, standalone: !!(navigator.standalone || matchMedia('(display-mode: standalone)').matches) }),
+      body: JSON.stringify({ device, standalone: isNative() || !!(navigator.standalone || matchMedia('(display-mode: standalone)').matches) }),
     });
     if (res.ok) remember({ device, day, who });
   } catch {} finally { pinging = false; } // offline or blocked: try again next time
@@ -428,6 +430,9 @@ async function checkAdmin({ fresh = false } = {}) {
     $('#admin-card').hidden = !admin;
   } catch {} finally { checkingAdmin = false; } // offline or blocked: keep what we knew
 }
+
+// admin.html isn't bundled in the iOS app, so the link opens the website (in Safari).
+if (isNative()) $('#admin-card a').href = `${LIVE_URL}admin.html`;
 
 // ---------- Wiring ----------
 

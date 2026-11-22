@@ -72,8 +72,9 @@ function returnControls() {
 
 // ---------- Steps ----------
 
-// The reminder needs sign-in, push support and (on iPhone) the Home Screen app,
-// so its step is left out where it couldn't be turned on.
+// On the web the reminder needs sign-in, push support and (on iPhone) the Home
+// Screen app, so its step is left out where it couldn't be turned on. The iOS
+// app schedules reminders itself and always offers it.
 const stepShown = (i) => OB_STEPS[i] !== 'remind' || Boolean(window.reminderAvailable?.());
 
 function stepFrom(i, dir) {

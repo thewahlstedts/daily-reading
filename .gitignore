@@ -2,3 +2,7 @@
 .claude/
 .env
 .env.*
+
+# iOS app (Capacitor)
+node_modules/
+www/

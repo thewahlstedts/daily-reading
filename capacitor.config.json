@@ -1,0 +1,9 @@
+{
+  "appId": "com.thewahlstedts.dailyreading",
+  "appName": "Daily Reading",
+  "webDir": "www",
+  "backgroundColor": "#f7f3ec",
+  "ios": {
+    "contentInset": "never"
+  }
+}
