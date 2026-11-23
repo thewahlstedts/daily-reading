@@ -432,7 +432,6 @@ async function checkAdmin({ fresh = false } = {}) {
 }
 
 // admin.html isn't bundled in the iOS app, so the link opens the website (in Safari).
-if (isNative()) $('#admin-card a').href = `${LIVE_URL}admin.html`;
 
 // ---------- Wiring ----------
 
