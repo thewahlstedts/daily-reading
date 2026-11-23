@@ -2245,7 +2245,12 @@ function applyTheme() {
   const bg = getComputedStyle(root).getPropertyValue('--bg').trim();
   $('#theme-color').content = bg;
   // The iOS app ignores theme-color, so set the status bar text color instead.
-  if (isNative()) nativeCall('SystemBars', 'setStyle', { style: isDarkColor(bg) ? 'DARK' : 'LIGHT' }).catch(() => {});
+  // The web view's own background (AppThemePlugin in AppDelegate.swift) shows
+  // above the page and when overscrolling, so it follows the theme too.
+  if (isNative()) {
+    nativeCall('SystemBars', 'setStyle', { style: isDarkColor(bg) ? 'DARK' : 'LIGHT' }).catch(() => {});
+    nativeCall('AppTheme', 'setBackground', { color: bg }).catch(() => {});
+  }
   document.querySelectorAll('.swatch').forEach((b) => b.setAttribute('aria-checked', b.dataset.theme === (state.theme || 'auto')));
 }
 

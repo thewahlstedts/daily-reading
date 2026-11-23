@@ -45,3 +45,47 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return config
     }
 }
+
+// The web view's own background shows above the page (under the status bar's
+// blur) and when overscrolling, so it follows the theme's --bg instead of
+// staying Parchment. Called from applyTheme() in app.js.
+@objc(AppThemePlugin)
+public class AppThemePlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "AppThemePlugin"
+    public let jsName = "AppTheme"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "setBackground", returnType: CAPPluginReturnPromise)
+    ]
+
+    @objc func setBackground(_ call: CAPPluginCall) {
+        guard let hex = call.getString("color"), let color = Self.color(hex) else {
+            call.reject("Expected a #rrggbb color")
+            return
+        }
+        DispatchQueue.main.async {
+            self.bridge?.viewController?.view.backgroundColor = color
+            if let webView = self.bridge?.webView {
+                webView.backgroundColor = color
+                webView.scrollView.backgroundColor = color
+                webView.underPageBackgroundColor = color
+            }
+            call.resolve()
+        }
+    }
+
+    static func color(_ hex: String) -> UIColor? {
+        let digits = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
+        guard digits.count == 6, let value = UInt32(digits, radix: 16) else { return nil }
+        return UIColor(red: CGFloat((value >> 16) & 0xff) / 255,
+                       green: CGFloat((value >> 8) & 0xff) / 255,
+                       blue: CGFloat(value & 0xff) / 255,
+                       alpha: 1)
+    }
+}
+
+// Registers the app's own plugins (SceneDelegate creates this class).
+class ViewController: CAPBridgeViewController {
+    override open func capacitorDidLoad() {
+        bridge?.registerPluginInstance(AppThemePlugin())
+    }
+}
