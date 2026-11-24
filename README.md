@@ -9,6 +9,7 @@ A small installable web app for a one-year Bible reading plan: shows today's rea
 - **Group weeks:** set the day your group meets (Settings) and the home page shows that week's readings, from the day after one meeting through the next. Every group reads the same plan week (Week 1–52, 7 readings each) on its own days; changing the meeting day moves the start date to keep weeks lined up.
 - **Sharing:** Settings → Share sends a link like `?start=2026-09-01&meet=2` so others follow the same schedule. New visitors adopt it automatically; anyone with their own start date is asked first.
 - **Daily reminder:** Settings → Reminder sends a notification at a chosen time naming the day's reading (skipped once you're caught up). Needs sign-in; on iPhone, add the app to the Home Screen first.
+- **Scripture references:** `logos-refs.js` finds references in text (`splitRefs`, e.g. `Rom 5:12–21`, `1 Cor 13`, `I John 4:8`; a bare `3:16` only with a default book) and builds `https://ref.ly/…` links that open in Logos (`logosUrl`, `labelUrl`). Only the reference goes in the URL. Tests: `node tools/test_refs.mjs`.
 - **Progress:** stored in the browser on each device. Optionally sign in (Settings → Sync across devices) to sync it via Supabase, or use Export/Import.
 - **Security:** see [SECURITY.md](SECURITY.md). Contributor notes are in [CLAUDE.md](CLAUDE.md).
 
