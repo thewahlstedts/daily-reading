@@ -1737,7 +1737,42 @@ async function fetchCommentary(book, chapter) {
 // ("1:1–2:3 These verses…"), shown as a label. Built with DOM nodes (API text is untrusted).
 // When `verseRef(chapter, verse)` finds that passage's first verse in the reader, the
 // label is a button that goes back to it.
-function commentaryNote(text, verseRef) {
+function appendLinked(parent, text, book) {
+  splitRefs(text, book).forEach((seg) => {
+    if (!seg.url) { parent.append(document.createTextNode(seg.text)); return; }
+    const a = document.createElement('a');
+    a.className = 'logos-link';
+    a.href = seg.url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.textContent = seg.text;
+    parent.append(a);
+  });
+}
+
+// The "Open in Logos" icon beside a note's label; null when the label has no verse.
+function logosOpenIcon(book, label) {
+  const href = labelUrl(book, label);
+  if (!href) return null;
+  const a = document.createElement('a');
+  a.className = 'logos-open';
+  a.href = href;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  a.title = 'Open in Logos';
+  a.setAttribute('aria-label', 'Open in Logos');
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS(ns, 'path');
+  path.setAttribute('d', 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5');
+  svg.append(path);
+  a.append(svg);
+  return a;
+}
+
+function commentaryNote(text, verseRef, book) {
   const div = document.createElement('div');
   div.className = 'comm-note';
   text.split('\n').filter((t) => t.trim()).forEach((para, k) => {
@@ -1754,9 +1789,13 @@ function commentaryNote(text, verseRef) {
         label.dataset.goto = target;
         label.setAttribute('aria-label', `Go to ${ref[1]} in the reading`);
       }
-      p.append(label, ' ', para.slice(ref[0].length));
+      p.append(label);
+      const open = logosOpenIcon(book, ref[1]);
+      if (open) p.append(open);
+      p.append(' ');
+      appendLinked(p, para.slice(ref[0].length), book);
     } else {
-      p.textContent = para;
+      appendLinked(p, para, book);
     }
     div.append(p);
   });
@@ -1862,7 +1901,7 @@ async function openCommentary(spot = readerSpot()) {
       summary.textContent = `About ${apiBook(book)}`;
       details.append(summary, ...intro.split('\n').filter((t) => t.trim()).map((t) => {
         const p = document.createElement('p');
-        p.textContent = t;
+        appendLinked(p, t, book);
         return p;
       }));
       body.append(details);
@@ -1883,7 +1922,7 @@ async function openCommentary(spot = readerSpot()) {
         body.append(none);
       }
       notes.forEach(({ n, text }) => {
-        const el = commentaryNote(text, verseRef);
+        const el = commentaryNote(text, verseRef, book);
         commentaryNotes.push({ ci, n, el });
         body.append(el);
       });

@@ -258,6 +258,10 @@ dialog::backdrop { background: rgba(0,0,0,.3); }
 .comm-note.here { background: var(--highlight); box-shadow: 0 0 0 8px var(--highlight); }
 .comm-note p, .comm-intro p { text-align: var(--read-align); hyphens: var(--read-hyphens); -webkit-hyphens: var(--read-hyphens); }
 .comm-ref { font-family: var(--sans); font-size: .85em; font-weight: 700; color: var(--accent); margin-right: 2px; }
+a.logos-link { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
+a.logos-open { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; min-height: 32px; vertical-align: middle; color: var(--muted); border-radius: 6px; }
+a.logos-open:hover, a.logos-open:focus-visible { color: var(--accent); background: var(--accent-soft); }
+a.logos-open svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 button.comm-ref { background: var(--accent-soft); border: 0; border-radius: 6px; padding: 1px 6px; cursor: pointer; line-height: inherit; }
 /* Verse numbers that open a commentary note: a soft tint, with a larger tap area. */
 .verse sup.has-comm { position: relative; background: var(--accent-soft); border-radius: 4px; padding: 0 .3em; cursor: pointer; }
