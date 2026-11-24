@@ -35,6 +35,19 @@ assert.strictEqual(labelUrl('Genesis', 'Introduction'), null);
 
 ['Mark my words', 'the book of Job was', 'Acts of the apostles', 'Amos said', 'Ruth and',
   'in 2026 we', 'chapter 12 and 34'].forEach((x) => none(x, 'John'));
+
+import { readFileSync } from 'node:fs';
+const src = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+const body = (name) => {
+  const i = src.indexOf(`function ${name}`);
+  assert.ok(i >= 0, name);
+  const j = src.indexOf('\nfunction ', i + 10);
+  return src.slice(i, j < 0 ? undefined : j);
+};
+assert.ok(body('appendLinked').includes('splitRefs'));
+assert.ok(body('commentaryNote').includes('appendLinked'));
+['appendLinked', 'commentaryNote'].forEach((n) => assert.ok(!/innerHTML/.test(body(n)), n));
+assert.ok(src.includes('logos-open') && src.includes('labelUrl'));
 console.log('ok');
 one('Gen 12', 'Gen 12', 'https://ref.ly/Genesis12');
 none('call 12:345 now'.replace('12:345', 'x12345:1'), 'John');
